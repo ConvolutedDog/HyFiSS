@@ -4,7 +4,7 @@ The source code for the simulator presented in our paper (Submission #49) at the
 ## Paper Details
 
 - Submission ID: #49
-- Title: 
+- Title: HyFiSS: A Hybrid Fidelity Stall-Aware Simulator for GPGPUs
 - Conference: MICRO 2024
 
 ## Prerequisites
@@ -156,7 +156,7 @@ python merge_report.py --dir ./apps/Rodinia/hotspot/outputs --kernel_id 0 --np 1
 ```
 
 The merged output file is named `kernel-0-summary.txt` and will be located in the `./apps/Rodinia/hotspot/outputs` directory, 
-and the content is roughly as follows::
+and the content is roughly as follows:
 
 ```c
 
