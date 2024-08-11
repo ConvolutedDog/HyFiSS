@@ -1,0 +1,10 @@
+obj/*
+gpu-simulator.x
+.vscode/
+*.mem
+*.sass
+*.temp.txt
+*-summary.txt
+app.config
+instn.config
+issue.config

@@ -1,0 +1,3 @@
+inject_funcs.o
+tracer.so
+tracer.o
