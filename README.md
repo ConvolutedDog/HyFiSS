@@ -359,4 +359,6 @@ and the content is roughly as follows:
 
 ## Docker
 
-We are creating a docker image that will be released once AE is complete.
+We are creating a docker image that will be released once AE is complete. 
+You can preview it from [Zenodo](https://zenodo.org/records/13150677?preview=1&token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjA4ZGEyOThiLTgyZTgtNDNiNi1hNzlhLTVmZGM3N2QzZGFmNCIsImRhdGEiOnt9LCJyYW5kb20iOiIxZmYzOWIxYjQwYTIwMDRiNDk0OGE1NzY5NDBlMTFmNiJ9.VBn9a515-5UycMT77Wj09FLXVyr1-zuATvRWuQslW_VRkN_omLTGvBgaY07q0ibBTqZ1NxIc0ZDtk8nVMhZ8xg) 
+and the docker image is called `micro57.tar.gz`.
