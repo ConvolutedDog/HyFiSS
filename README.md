@@ -1,9 +1,10 @@
 
-The source code for the simulator presented in our paper (Submission #49) at the "MICRO 2024" conference.
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13150677.svg)](https://doi.org/10.5281/zenodo.13150677)
+
+The source code for the simulator presented in our paper at the "MICRO 2024" conference.
 
 ## Paper Details
 
-- Submission ID: #49
 - Title: HyFiSS: A Hybrid Fidelity Stall-Aware Simulator for GPGPUs
 - Conference: MICRO 2024
 
@@ -360,5 +361,5 @@ and the content is roughly as follows:
 ## Docker
 
 We are creating a docker image that will be released once AE is complete. 
-You can preview it from [Zenodo](https://zenodo.org/records/13150677?preview=1&token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjA4ZGEyOThiLTgyZTgtNDNiNi1hNzlhLTVmZGM3N2QzZGFmNCIsImRhdGEiOnt9LCJyYW5kb20iOiIxZmYzOWIxYjQwYTIwMDRiNDk0OGE1NzY5NDBlMTFmNiJ9.VBn9a515-5UycMT77Wj09FLXVyr1-zuATvRWuQslW_VRkN_omLTGvBgaY07q0ibBTqZ1NxIc0ZDtk8nVMhZ8xg) 
+You can preview it from [Zenodo](https://zenodo.org/records/13150677) 
 and the docker image is called `micro57.tar.gz`.
