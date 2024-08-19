@@ -92,6 +92,7 @@ static const std::unordered_map<std::string, OpcodeChar> Volta_OpcodeMap = {
     {"I2I",         OpcodeChar(OP_I2I,         INTP_OP)},
     {"I2IP",        OpcodeChar(OP_I2IP,        INTP_OP)},
     {"FRND",        OpcodeChar(OP_FRND,        INTP_OP)},
+    {"F2FP",        OpcodeChar(OP_F2F,         SP_OP)},
 
     // Movement Instructions
     // {"MOV",         OpcodeChar(OP_MOV,         ALU_OP)},
