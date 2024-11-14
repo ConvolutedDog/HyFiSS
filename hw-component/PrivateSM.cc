@@ -1301,7 +1301,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
 
       for (auto regnum : need_write_back_regs_num) {
 
-        m_scoreboard->releaseRegisters(global_all_kernels_warp_id, regnum);
+        m_scoreboard->releaseRegister(global_all_kernels_warp_id, regnum);
         insert_into_active_warps_id(&active_warps_id,
                                     global_all_kernels_warp_id);
       }
@@ -2298,6 +2298,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
             regnums.push_back(ar1);
             regnums.push_back(ar2);
 
+            /// TODO: Use `std::unordered_set` to replace `std::vector<int> regnums`.
             m_scoreboard->reserveRegisters(global_all_kernels_warp_id, regnums,
                                            false);
           }

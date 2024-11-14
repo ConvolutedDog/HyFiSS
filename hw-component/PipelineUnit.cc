@@ -433,7 +433,7 @@ std::vector<unsigned> mem_unit::cycle(
 
       for (auto regnum : need_write_back_regs_num) {
 
-        m_scoreboard->releaseRegisters(global_all_kernels_warp_id, regnum);
+        m_scoreboard->releaseRegister(global_all_kernels_warp_id, regnum);
       }
     }
   }
