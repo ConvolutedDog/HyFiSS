@@ -37,7 +37,7 @@ public:
   virtual bool can_issue(const unsigned latency) const;
   virtual bool is_issue_partitioned() = 0;
 
-  unsigned get_issue_reg_id() { return m_issue_reg_id; }
+  inline unsigned get_issue_reg_id() const { return m_issue_reg_id; }
   void print() const {
     printf("%s dispatch= ", m_name.c_str());
 

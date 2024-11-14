@@ -196,9 +196,9 @@ public:
     return ready;
   }
 
-  inst_fetch_buffer_entry **get_ready(bool sub_core_model, unsigned reg_id) {
-    if (!sub_core_model)
-      return get_ready();
+  inst_fetch_buffer_entry **get_ready(const bool sub_core_model,
+                                      const unsigned reg_id) {
+    if (!sub_core_model) return get_ready();
     inst_fetch_buffer_entry **ready;
     ready = NULL;
     assert(reg_id < regs.size());
