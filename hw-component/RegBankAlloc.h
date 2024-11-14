@@ -23,19 +23,38 @@ public:
   unsigned register_bank(const unsigned regnum, const unsigned wid,
                          const unsigned sched_id) const;
 
-  RegBankState getBankState(const unsigned bank_id) const;
+  inline const RegBankState& getBankState(const unsigned bank_id) const {
+    return m_bank_state[bank_id];
+  }
 
-  RegBankState getBankState(const unsigned regnum, const unsigned wid,
+  const RegBankState& getBankState(const unsigned regnum, const unsigned wid,
                                    const unsigned sched_id) const;
 
-  void setBankState(const unsigned bank_id, const RegBankState state);
-  void setBankState(const unsigned regnum, const unsigned wid,
-                    const unsigned sched_id, const RegBankState state);
+  inline void setBankState(const unsigned bank_id, 
+                           const RegBankState state) noexcept {
+    m_bank_state[bank_id] = state;
+  };
 
-  void releaseBankState(const unsigned regnum, const unsigned wid,
-                        const unsigned sched_id);
-  void releaseBankState(const unsigned bank_id);
-  void releaseAllBankStates();
+  void setBankState(const unsigned regnum, const unsigned wid,
+                    const unsigned sched_id, const RegBankState state) noexcept;
+  
+  inline void releaseBankState(const unsigned bank_id) noexcept {
+    setBankState(bank_id, FREE);
+  }
+  
+  void releaseBankState(const unsigned regnum,
+                        const unsigned wid,
+                        const unsigned sched_id) noexcept;
+
+  /// TODO: Using `std::fill_n(m_bank_state.begin(), m_num_banks, FREE);`
+  /// to replace the loop can cause additional overhead due to the in-
+  /// ability to take advantage of inline functions, as well as the in-
+  /// ternal iterator performing bounds checks.
+  inline void releaseAllBankStates() noexcept {
+    for (unsigned i = 0; i < m_num_banks; ++i) {
+      setBankState(i, FREE);
+    }
+  };
 
   void printBankState() const;
 

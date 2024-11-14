@@ -31,51 +31,30 @@ unsigned regBankAlloc::register_bank(const unsigned regnum,
   }
 }
 
-RegBankState
-regBankAlloc::getBankState(const unsigned bank_id) const {
-  return m_bank_state[bank_id];
-}
-
-RegBankState
-regBankAlloc::getBankState(const unsigned regnum, const unsigned wid,
-                                    const unsigned sched_id) const {
+const RegBankState& regBankAlloc::getBankState(
+  const unsigned regnum, const unsigned wid,
+  const unsigned sched_id) const {
   unsigned bank_id = register_bank(regnum, wid, sched_id);
-  return m_bank_state[bank_id];
-}
-
-void regBankAlloc::setBankState(const unsigned bank_id,
-                                         const RegBankState state) {
-  m_bank_state[bank_id] = state;
+  return getBankState(bank_id);
 }
 
 void regBankAlloc::setBankState(const unsigned regnum,
-                                         const unsigned wid,
-                                         const unsigned sched_id,
-                                         const RegBankState state) {
+                                const unsigned wid,
+                                const unsigned sched_id,
+                                const RegBankState state) noexcept{
   unsigned bank_id = register_bank(regnum, wid, sched_id);
-  m_bank_state[bank_id] = state;
+  setBankState(bank_id, state);
 }
 
 void regBankAlloc::releaseBankState(const unsigned regnum,
-                                             const unsigned wid,
-                                             const unsigned sched_id) {
-  unsigned bank_id = register_bank(regnum, wid, sched_id);
-  m_bank_state[bank_id] = FREE;
-}
-
-void regBankAlloc::releaseBankState(const unsigned bank_id) {
-  m_bank_state[bank_id] = FREE;
-}
-
-void regBankAlloc::releaseAllBankStates() {
-  for (unsigned i = 0; i < m_num_banks; i++) {
-    m_bank_state[i] = FREE;
-  }
+                                    const unsigned wid,
+                                    const unsigned sched_id) noexcept {
+  setBankState(regnum, wid, sched_id, FREE);
 }
 
 void regBankAlloc::printBankState() const {
   printf("Register Bank State (smid=%u): \n", m_smid);
-  for (unsigned i = 0; i < m_num_banks; i++) {
+  for (unsigned i = 0; i < m_num_banks; ++i) {
     printf("  bank %2u: %d\n", i, m_bank_state[i]);
   }
 }

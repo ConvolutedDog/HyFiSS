@@ -1,5 +1,7 @@
 #include "IBuffer.h"
 
+#define PRINT_AT for(unsigned i=0; i<40; ++i) std::cout << "@"; std::cout << std::endl;
+
 IBuffer::IBuffer(const unsigned smid, const unsigned num_warps)
   : m_smid(smid), m_num_warps(num_warps) {
   m_ibuffer.resize(num_warps);
@@ -17,7 +19,7 @@ void IBuffer::print_ibuffer() const {
 }
 
 void IBuffer::print_ibuffer(const unsigned gwarp_start, const unsigned gwarp_end) const {
-  std::cout << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
+PRINT_AT;
   for (unsigned i = gwarp_start; i < gwarp_end; i++) {
     std::cout << "    Ibuffer (pc, wid, kid) warp - " << i << ": ";
     for (auto it = m_ibuffer[i].begin(); it != m_ibuffer[i].end(); it++) {
@@ -26,7 +28,7 @@ void IBuffer::print_ibuffer(const unsigned gwarp_start, const unsigned gwarp_end
     }
     std::cout << std::endl;
   }
-  std::cout << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
+PRINT_AT;
 }
 
 void IBuffer::print_ibuffer(const unsigned gwarp_id) const {
