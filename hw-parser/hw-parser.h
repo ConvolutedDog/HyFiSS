@@ -11,7 +11,7 @@
 
 #define MHZ *1000000
 
-#define _CALIBRATION_LOG_ 0
+#define CALIBRATION_LOG_ENABLED 0
 
 enum pipeline_stage_name_t {
   ID_OC_SP = 0,

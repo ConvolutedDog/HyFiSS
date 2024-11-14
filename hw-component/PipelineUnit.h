@@ -7,16 +7,23 @@
 #include "../trace-driven/register-set.h"
 #include "../trace-parser/trace-parser.h"
 
-#ifndef PIPELINEUNIT_H
-#define PIPELINEUNIT_H
-
+#ifndef MAX_ALU_LATENCY
 #define MAX_ALU_LATENCY 1024
+#endif
+
+#ifndef PRED_NUM_OFFSET
 #define PRED_NUM_OFFSET 65536
+#endif
+
+#ifndef PIPELINE_UNIT_H
+#define PIPELINE_UNIT_H
 
 class pipelined_simd_unit {
 public:
-  pipelined_simd_unit(register_set *result_port, unsigned max_latency,
-                      unsigned issue_reg_id, hw_config *hw_cfg,
+  pipelined_simd_unit(register_set *result_port,
+                      const unsigned max_latency,
+                      const unsigned issue_reg_id,
+                      hw_config *hw_cfg,
                       trace_parser *tracer);
   virtual ~pipelined_simd_unit() = 0;
 
@@ -27,24 +34,23 @@ public:
 
   virtual bool stallable() const { return false; }
 
-  virtual bool can_issue(unsigned latency) const;
+  virtual bool can_issue(const unsigned latency) const;
   virtual bool is_issue_partitioned() = 0;
 
   unsigned get_issue_reg_id() { return m_issue_reg_id; }
   void print() const {
     printf("%s dispatch= ", m_name.c_str());
 
-    std::cout << "m_dispatch_reg: (pc,wid,kid,uid) " << m_dispatch_reg->pc
-              << " " << m_dispatch_reg->wid << " " << m_dispatch_reg->kid << " "
-              << m_dispatch_reg->uid << std::endl;
+    printf("m_dispatch_reg: (pc,wid,kid,uid) %u %u %u %u\n", 
+      m_dispatch_reg->pc, m_dispatch_reg->wid, 
+      m_dispatch_reg->kid, m_dispatch_reg->uid);
+
     for (int s = m_pipeline_depth - 1; s >= 0; s--) {
       if (m_pipeline_reg[s]->m_valid) {
         printf("      %s[%2d] ", m_name.c_str(), s);
-
-        std::cout << "m_pipeline_reg[" << s << "]: (pc,wid,kid,uid) "
-                  << m_pipeline_reg[s]->pc << " " << m_pipeline_reg[s]->wid
-                  << " " << m_pipeline_reg[s]->kid << " "
-                  << m_pipeline_reg[s]->uid << std::endl;
+        printf("m_dispatch_reg[%d]: (pc,wid,kid,uid) %u %u %u %u\n", s,
+          m_dispatch_reg->pc, m_dispatch_reg->wid, 
+          m_dispatch_reg->kid, m_dispatch_reg->uid);
       }
     }
   }
@@ -65,11 +71,10 @@ public:
   const char *get_name() { return m_name.c_str(); }
 
   template <unsigned pos>
-  void
-  set_clk_record(std::map<std::tuple<unsigned, unsigned, unsigned>,
-                          std::tuple<unsigned, unsigned, unsigned, unsigned,
-                                     unsigned, unsigned>> *clk_record,
-                 unsigned kid, unsigned wid, unsigned uid, unsigned value) {
+  void set_clk_record(std::map<std::tuple<unsigned, unsigned, unsigned>,
+                      std::tuple<unsigned, unsigned, unsigned, unsigned,
+                                 unsigned, unsigned>> *clk_record,
+                      unsigned kid, unsigned wid, unsigned uid, unsigned value) {
     const std::tuple<unsigned, unsigned, unsigned> key(kid, wid, uid);
     auto it = clk_record->find(key);
 
@@ -80,6 +85,16 @@ public:
       (*clk_record)[key] = new_value;
     } else {
       std::get<pos>(it->second) = value;
+    }
+  }
+
+  inline void dump_m_pipeline_reg_front() const {
+    if (CALIBRATION_LOG_ENABLED) {
+      printf("    Execute: (%u, %u, %u, %u)\n", 
+        m_pipeline_reg[0]->kid,
+        m_pipeline_reg[0]->wid,
+        m_pipeline_reg[0]->uid,
+        m_pipeline_reg[0]->pc);
     }
   }
 

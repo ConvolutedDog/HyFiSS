@@ -294,7 +294,7 @@ void opndcoll_rfu_t::collector_unit_t::dispatch(
     unsigned cycle) {
   assert(m_not_ready.none());
 
-  if (_CALIBRATION_LOG_) {
+  if (CALIBRATION_LOG_ENABLED) {
     std::cout << "    Read Operands: (" << m_warp->kid << ", " << m_warp->wid
               << ", " << m_warp->uid << ", " << m_warp->pc << ")" << std::endl;
   }

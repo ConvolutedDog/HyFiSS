@@ -1080,7 +1080,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
 
   m_cycle++;
 
-  if (_CALIBRATION_LOG_) {
+  if (CALIBRATION_LOG_ENABLED) {
     std::cout << "#: m_cycle: " << m_cycle << std::endl;
   }
 
@@ -1224,7 +1224,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
 
     if (all_write_back) {
 
-      if (_CALIBRATION_LOG_) {
+      if (CALIBRATION_LOG_ENABLED) {
         std::cout << "    Write back: (" << _kid << ", " << _wid << ", " << _uid
                   << ", " << _pc << ")" << std::endl;
       }
@@ -2276,7 +2276,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
 
             if (warp_inst_issued) {
               total_issued_instn_num++;
-              if (_CALIBRATION_LOG_) {
+              if (CALIBRATION_LOG_ENABLED) {
                 std::cout << "    ISSUE: (" << _kid << ", " << _gwid << ", "
                           << _fetch_instn_id << ", " << _pc << ")" << std::endl;
               }
@@ -2372,7 +2372,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
         active_during_this_cycle = true;
         insert_into_active_warps_id(&active_warps_id,
                                     global_all_kernels_warp_id);
-        if (_CALIBRATION_LOG_) {
+        if (CALIBRATION_LOG_ENABLED) {
           std::cout << "    DECODE: (" << _entry.kid << ", " << _entry.wid
                     << ", " << _entry.uid << ", " << _entry.pc << ")"
                     << std::endl;
@@ -2383,7 +2383,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
           ibuffer_entry __entry = ibuffer_entry(__pc, __wid, __kid, __uid);
           m_ibuffer->push_back(global_all_kernels_warp_id, __entry);
           m_inst_fetch_buffer_copy->m_valid = false;
-          if (_CALIBRATION_LOG_) {
+          if (CALIBRATION_LOG_ENABLED) {
             std::cout << "    DECODE: (" << __entry.kid << ", " << __entry.wid
                       << ", " << __entry.uid << ", " << __entry.pc << ")"
                       << std::endl;
@@ -2502,7 +2502,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
             active_during_this_cycle = true;
             insert_into_active_warps_id(&active_warps_id, wid);
 
-            if (_CALIBRATION_LOG_) {
+            if (CALIBRATION_LOG_ENABLED) {
               std::cout << "    FETCH: (" << _kid << ", " << wid << ", "
                         << fetch_instn_id << ", " << tmp_inst_trace->m_pc << ")"
                         << std::endl;
@@ -2531,7 +2531,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
               m_inst_fetch_buffer_copy->m_valid = false;
             }
 
-            if (_CALIBRATION_LOG_) {
+            if (CALIBRATION_LOG_ENABLED) {
               std::cout << "    FETCH: (" << _kid << ", " << wid << ", "
                         << fetch_instn_id + 1 << ", " << tmp_inst_trace->m_pc
                         << ")" << std::endl;

@@ -104,18 +104,9 @@ public:
 
   void move_warp(inst_fetch_buffer_entry *&dest,
                  inst_fetch_buffer_entry *&src) {
-    dest->pc = src->pc;
-    dest->wid = src->wid;
-    dest->kid = src->kid;
-    dest->uid = src->uid;
-    dest->latency = src->latency;
-    dest->initial_interval = src->initial_interval;
-
-    dest->initial_interval_dec_counter = src->initial_interval_dec_counter;
-
-    dest->m_valid = true;
-
+    *dest = std::move(*src);
     src->m_valid = false;
+    dest->m_valid = true;
   }
 
   void move_in(inst_fetch_buffer_entry *&src) {
