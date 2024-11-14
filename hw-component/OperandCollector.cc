@@ -16,6 +16,17 @@ unsigned register_bank_opcoll(unsigned regnum, unsigned wid, unsigned num_banks,
     return bank % num_banks;
 }
 
+opndcoll_rfu_t::opndcoll_rfu_t()
+  : m_num_banks(0), m_initialized(false) {}
+
+opndcoll_rfu_t::opndcoll_rfu_t(
+  hw_config *hw_cfg,
+  regBankAlloc *reg_bank_allocator,
+  trace_parser *tracer) 
+  : m_num_banks(0), m_initialized(false),
+    m_reg_bank_allocator(reg_bank_allocator),
+    m_hw_cfg(hw_cfg), m_tracer(tracer) {}
+
 void opndcoll_rfu_t::add_cu_set(unsigned set_id, unsigned num_cu,
                                 unsigned num_dispatch) {
   m_cus[set_id].reserve(num_cu);
@@ -38,7 +49,7 @@ void opndcoll_rfu_t::add_port(port_vector_t &input, port_vector_t &output,
 }
 
 void opndcoll_rfu_t::init(hw_config *hw_cfg,
-                          RegisterBankAllocator *reg_bank_allocator,
+                          regBankAlloc *reg_bank_allocator,
                           trace_parser *tracer) {
 
   unsigned num_banks = m_hw_cfg->get_num_reg_banks();

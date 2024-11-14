@@ -1,7 +1,7 @@
 #include <bitset>
 #include <vector>
 
-#include "../hw-component/RegisterBankAllocator.h"
+#include "../hw-component/RegBankAlloc.h"
 #include "../hw-component/Scoreboard.h"
 #include "../hw-parser/hw-parser.h"
 #include "../trace-driven/register-set.h"
@@ -53,7 +53,7 @@ public:
   cycle(trace_parser *tracer, Scoreboard *m_scoreboard, app_config *appcfg,
         std::vector<std::pair<int, int>> *kernel_block_pair,
         std::vector<unsigned> *m_num_warps_per_sm, unsigned KERNEL_EVALUATION,
-        unsigned num_scheds, RegisterBankAllocator *m_reg_bank_allocator,
+        unsigned num_scheds, regBankAlloc *m_reg_bank_allocator,
         bool *flag_Writeback_Memory_Structural_bank_of_reg_is_not_idle,
         std::map<std::tuple<unsigned, unsigned, unsigned>,
                  std::tuple<unsigned, unsigned, unsigned, unsigned, unsigned,
@@ -262,7 +262,7 @@ public:
   cycle(trace_parser *tracer, Scoreboard *m_scoreboard, app_config *appcfg,
         std::vector<std::pair<int, int>> *kernel_block_pair,
         std::vector<unsigned> *m_num_warps_per_sm, unsigned KERNEL_EVALUATION,
-        unsigned num_scheds, RegisterBankAllocator *m_reg_bank_allocator,
+        unsigned num_scheds, regBankAlloc *m_reg_bank_allocator,
         bool *flag_Writeback_Memory_Structural_bank_of_reg_is_not_idle,
         std::map<std::tuple<unsigned, unsigned, unsigned>,
                  std::tuple<unsigned, unsigned, unsigned, unsigned, unsigned,

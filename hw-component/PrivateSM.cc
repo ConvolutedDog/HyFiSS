@@ -818,7 +818,7 @@ PrivateSM::PrivateSM(const unsigned smid, trace_parser *tracer,
 
   last_issue_block_index_per_sched.resize(num_scheds, 0);
 
-  m_reg_bank_allocator = new RegisterBankAllocator(
+  m_reg_bank_allocator = new regBankAlloc(
       m_smid, num_banks, num_scheds, bank_warp_shift, banks_per_sched);
 
   parse_blocks_per_kernel();
