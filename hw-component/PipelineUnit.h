@@ -134,7 +134,7 @@ public:
   virtual unsigned clock_multiplier() const { return 1; }
   virtual void issue(register_set &source_reg);
   virtual void issue(register_set &source_reg, unsigned reg_id);
-  bool is_issue_partitioned() { return true; }
+  inline bool is_issue_partitioned() override { return true; }
   virtual bool stallable() const { return false; }
 };
 
@@ -152,7 +152,7 @@ public:
   virtual unsigned clock_multiplier() const { return 1; }
   virtual void issue(register_set &source_reg);
   virtual void issue(register_set &source_reg, unsigned reg_id);
-  bool is_issue_partitioned() { return true; }
+  inline bool is_issue_partitioned() override { return true; }
   virtual bool stallable() const { return false; }
 };
 
@@ -170,7 +170,7 @@ public:
   virtual unsigned clock_multiplier() const { return 1; }
   virtual void issue(register_set &source_reg);
   virtual void issue(register_set &source_reg, unsigned reg_id);
-  bool is_issue_partitioned() { return true; }
+  inline bool is_issue_partitioned() override { return true; }
   virtual bool stallable() const { return false; }
 };
 
@@ -188,7 +188,7 @@ public:
   virtual unsigned clock_multiplier() const { return 1; }
   virtual void issue(register_set &source_reg);
   virtual void issue(register_set &source_reg, unsigned reg_id);
-  bool is_issue_partitioned() { return true; }
+  inline bool is_issue_partitioned() override { return true; }
   virtual bool stallable() const { return false; }
 };
 
@@ -206,7 +206,7 @@ public:
   virtual unsigned clock_multiplier() const { return 1; }
   virtual void issue(register_set &source_reg);
   virtual void issue(register_set &source_reg, unsigned reg_id);
-  bool is_issue_partitioned() { return true; }
+  inline bool is_issue_partitioned() override { return true; }
   virtual bool stallable() const { return false; }
 };
 
@@ -225,7 +225,7 @@ public:
   virtual unsigned clock_multiplier() const { return 1; }
   virtual void issue(register_set &source_reg);
   virtual void issue(register_set &source_reg, unsigned reg_id);
-  bool is_issue_partitioned() { return true; }
+  inline bool is_issue_partitioned() override { return true; }
   virtual bool stallable() const { return false; }
 
 private:
@@ -271,7 +271,7 @@ public:
   virtual unsigned clock_multiplier() const { return 1; }
   virtual void issue(register_set &source_reg);
   virtual void issue(register_set &source_reg, unsigned reg_id);
-  bool is_issue_partitioned() { return true; }
+  inline bool is_issue_partitioned() override { return true; }
   virtual bool stallable() const { return true; }
   virtual std::vector<unsigned int>
   cycle(trace_parser *tracer, Scoreboard *m_scoreboard, app_config *appcfg,
