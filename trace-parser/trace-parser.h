@@ -173,11 +173,8 @@ private:
 class instn_info_t {
 public:
   instn_info_t() {}
-  instn_info_t(unsigned _kernel_id, unsigned _pc, std::string _instn_str) {
-    kernel_id = _kernel_id;
-    pc = _pc;
-    instn_str = _instn_str;
-  }
+  instn_info_t(unsigned kernel_id, unsigned pc, std::string instn_str)
+    : kernel_id(kernel_id), pc(pc), instn_str(instn_str) {}
 
 private:
   unsigned kernel_id;
@@ -193,7 +190,8 @@ public:
     this->hw_cfg = hw_cfg;
   }
   ~instn_config() {
-    for (auto iter = instn_info_vector.begin(); iter != instn_info_vector.end();
+    for (auto iter = instn_info_vector.begin(); 
+         iter != instn_info_vector.end();
          ++iter) {
       delete iter->second;
     }

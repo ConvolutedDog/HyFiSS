@@ -390,7 +390,7 @@ public:
   unsigned get_opcode_initiation_interval_tensor_core() const {
     return opcode_initiation_interval_tensor_core;
   }
-  bool get_sub_core_model() const { return sub_core_model; }
+  inline bool get_sub_core_model() const { return sub_core_model; }
   unsigned get_operand_collector_num_units_gen() const {
     return operand_collector_num_units_gen;
   }

@@ -2848,26 +2848,27 @@ else:
 ### MAY ERROR
 Warp_instructions_executed_summary = 0
 
-# for i in range(SMs_num):
-#     if Warp_instructions_executed[i] is not None:
-#         Warp_instructions_executed_summary += Warp_instructions_executed[i]
+for i in range(SMs_num):
+    if Warp_instructions_executed[i] is not None:
+        Warp_instructions_executed_summary += Warp_instructions_executed[i]
 
-# Warp_instructions_executed_summary *= SMs_num
-import subprocess
+Warp_instructions_executed_summary *= SMs_num
 
-sass_files_dir = reports_dir + "/../sass_traces/kernel_" + str(kernel_id +
-                                                               1) + ".sass"
-command = f"awk '{{count += gsub(/ /,\"&\")}} END{{print count}}' {sass_files_dir}"
+# import subprocess
 
-result = subprocess.run(command, shell=True, text=True, capture_output=True)
-if result.returncode == 0:
-    Warp_instructions_executed_summary = int(int(result.stdout.strip()) / 3)
-else:
-    for i in range(SMs_num):
-        if Warp_instructions_executed[i] is not None:
-            Warp_instructions_executed_summary += Warp_instructions_executed[i]
+# sass_files_dir = reports_dir + "/../sass_traces/kernel_" + str(kernel_id +
+#                                                                1) + ".sass"
+# command = f"awk '{{count += gsub(/ /,\"&\")}} END{{print count}}' {sass_files_dir}"
 
-    Warp_instructions_executed_summary *= SMs_num
+# result = subprocess.run(command, shell=True, text=True, capture_output=True)
+# if result.returncode == 0:
+#     Warp_instructions_executed_summary = int(int(result.stdout.strip()) / 3)
+# else:
+#     for i in range(SMs_num):
+#         if Warp_instructions_executed[i] is not None:
+#             Warp_instructions_executed_summary += Warp_instructions_executed[i]
+
+#     Warp_instructions_executed_summary *= SMs_num
 
 Instructions_executed_per_clock_cycle_IPC_summary = \
     float(Warp_instructions_executed_summary) / float(GPU_active_cycles_summary * SMs_num)
