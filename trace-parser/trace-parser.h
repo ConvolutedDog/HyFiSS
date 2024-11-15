@@ -220,19 +220,19 @@ private:
 
 struct block_info_t {
   block_info_t() {}
-  block_info_t(unsigned _kernel_id, unsigned _block_id,
-               unsigned long long _time_stamp, unsigned _sm_id) {
-    kernel_id = _kernel_id;
-    block_id = _block_id;
-    time_stamp = _time_stamp;
-    sm_id = _sm_id;
-  }
+  block_info_t(const unsigned kernel_id,
+               const unsigned block_id,
+               const unsigned long long time_stamp,
+               const unsigned sm_id)
+    : kernel_id(kernel_id), block_id(block_id),
+      time_stamp(time_stamp), sm_id(sm_id) {}
 
   unsigned kernel_id;
   unsigned block_id;
   unsigned long long time_stamp;
   unsigned sm_id;
 
+/// TODO: May not need this.
 #ifdef USE_BOOST
   friend class boost::serialization::access;
   template <class Archive>
@@ -251,7 +251,7 @@ public:
     m_valid = false;
     trace_issued_sms_num = 1;
   }
-  void init(std::string config_path, bool PRINT_LOG);
+  void init(const std::string config_path, bool dump_log);
 
   std::vector<std::vector<block_info_t>> *get_trace_issued_sm_id_blocks() {
     return &trace_issued_sm_id_blocks;
@@ -289,6 +289,9 @@ public:
     return result;
   }
 
+  /// @brief 
+  /// @param smid 
+  /// @return 
   std::vector<std::pair<int, int>> get_kernel_block_by_smid_0(int smid) {
     std::vector<std::pair<int, int>> result;
     for (auto iter = trace_issued_sm_id_blocks.begin();

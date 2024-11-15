@@ -1,6 +1,6 @@
 USE_BOOST ?= 1
 DEBUG ?= 0
-USE_GPERF ?= 0
+USE_GPROF ?= 0
 
 BOOST_PATH := $(shell echo $$LD_LIBRARY_PATH | tr ':' '\n' | grep boost/lib | head -n 1)
 ifeq ($(BOOST_PATH),)
@@ -30,7 +30,7 @@ endif
 
 CXXFLAGS = -Wall -finline-functions -funswitch-loops -MMD -MP
 
-ifeq ($(USE_GPERF),1)
+ifeq ($(USE_GPROF),1)
 	CXXFLAGS += -pg
 endif
 

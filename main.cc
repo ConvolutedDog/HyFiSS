@@ -476,12 +476,12 @@ int main(int argc, char **argv) {
   app.add_option("--configs", configs,
                  "The configs path, which is generated from our NVBit tool, "
                  "e.g., \"./traces/vectoradd/configs\"");
-  // app.add_option("--sort", sort,
-  //                "Simulate the order in which instructions are issued based
-  //                on their " "timestamps");
-  // app.add_option("--dump_histogram", dump_histogram,
-  //                "Dump the histogram of the private L1 cache hit "
-  //                "rate");
+  /// TODO: May not need this again.
+  /// app.add_option("--sort", sort,
+  ///                "Simulate the order in which instructions are issued"
+  ///                "based on their timestamps");
+  /// app.add_option("--dump_histogram", dump_histogram,
+  ///                "Dump the histogram of the private L1 cache hit rate");
   app.add_option("--config_file", hw_config_file,
                  "The config file, e.g., \"../DEV-Def/QV100.config\"");
   app.add_option("--kernel_id", KERNEL_EVALUATION,
@@ -497,14 +497,24 @@ int main(int argc, char **argv) {
 
   tracer.parse_configs_file(false);
 
+  // The indexes of all SMs that need to be simulated by the current
+  // process. This means that the current process needs to read the
+  // trace of these SMs.
+  /// TODO: Change the name of this var.
   std::vector<int> need_to_read_mem_instns_sms;
 
-  const int pass_num =
-      int((hw_cfg.get_num_sms() + world.size() - 1) / world.size());
-  for (int _pass = 0; _pass < pass_num; _pass++) {
-    unsigned curr_process_idx_rank = world.rank() + _pass * world.size();
-
-    unsigned curr_process_idx = curr_process_idx_rank;
+  // The maximum number of SMs that a process need to simulate, if not
+  // sampled. It can also be thought of as how many rounds it takes to
+  // simulate all SMs if each process simulates one SM in each round,
+  // and the same is true for the case where the simulation is not sam-
+  // pled.
+  const int pass_num = int((hw_cfg.get_num_sms() + world.size() - 1) / world.size());
+  for (unsigned pass = 0; pass < pass_num; ++pass) {
+    // The SM index that the current process need to simulate during
+    // the current `pass`.
+    unsigned curr_process_idx = world.rank() + pass * world.size();
+    // There may be some processes in the final round that don't need
+    // to simulate any SM.
     if (curr_process_idx < hw_cfg.get_num_sms())
       need_to_read_mem_instns_sms.push_back(curr_process_idx);
   }
