@@ -499,57 +499,75 @@ int main(int argc, char **argv) {
 
   // The indexes of all SMs that need to be simulated by the current
   // process. This means that the current process needs to read the
-  // trace of these SMs.
-  /// TODO: Change the name of this var.
-  std::vector<int> need_to_read_mem_instns_sms;
+  // trace of these SMs. And this's not the real index of SMs, but
+  // only the serial number of the SMs in all pending SMs. We call
+  // this the `serial number` of SMs.
+  /// TODO: Change the name of this var to about `serial number`.
+  std::vector<int> needReadMemInstSerialNumbers;
 
   // The maximum number of SMs that a process need to simulate, if not
   // sampled. It can also be thought of as how many rounds it takes to
   // simulate all SMs if each process simulates one SM in each round,
   // and the same is true for the case where the simulation is not sam-
   // pled.
-  const int pass_num = int((hw_cfg.get_num_sms() + world.size() - 1) / world.size());
+  const int pass_num = int((tracer.get_issuecfg()->get_trace_issued_sms_num() +
+                            world.size() - 1) / world.size());
+  std::cout << "pass_num: " << pass_num << std::endl;
   for (unsigned pass = 0; pass < pass_num; ++pass) {
-    // The SM index that the current process need to simulate during
-    // the current `pass`.
+    // The SM `serial number` that the current process need to simulate
+    // during the current `pass`.
     unsigned curr_process_idx = world.rank() + pass * world.size();
     // There may be some processes in the final round that don't need
     // to simulate any SM.
-    if (curr_process_idx < hw_cfg.get_num_sms())
-      need_to_read_mem_instns_sms.push_back(curr_process_idx);
+    if (curr_process_idx < tracer.get_issuecfg()->get_trace_issued_sms_num())
+      needReadMemInstSerialNumbers.push_back(curr_process_idx);
   }
 
-  // statistics collector 
+  // Statistics Collector.
+  /// TDOO: Support multiple kernels.
   stat_collector stat_coll(&hw_cfg, KERNEL_EVALUATION);
 
-  std::vector<std::pair<int, int>> need_to_read_mem_instns_kernel_block_pair;
+  std::vector<std::pair<int, int>> kernelBlockPairsNeedRead;
 
-  for (auto sm_id : need_to_read_mem_instns_sms) {
+  for (auto sm_serial_num : needReadMemInstSerialNumbers) {
+    // Transform the serial number to SM index.
+    unsigned smId = tracer.get_issuecfg()->serialNum2Index(sm_serial_num);
 
     std::vector<std::pair<int, int>> result;
     if (world.rank() == 0)
-      result = tracer.get_issuecfg()->get_kernel_block_by_smid_0(sm_id);
+      result = tracer.get_issuecfg()->get_kernel_block_of_all_sms();
     else
-      result = tracer.get_issuecfg()->get_kernel_block_by_smid(sm_id);
-    for (auto pair : result) {
+      result = tracer.get_issuecfg()->get_kernel_block_by_smid(smId);
 
-      bool flag = false;
-      for (auto x : need_to_read_mem_instns_kernel_block_pair) {
+    for (auto pair : result) {
+      bool dontNeedFlag = false;
+      for (auto x : kernelBlockPairsNeedRead) {
         if ((x.first == pair.first && x.second == pair.second)) {
-          flag = true;
+          // The `pair` has been in `kernelBlockPairsNeedRead`.
+          dontNeedFlag = true;
           break;
         }
       }
-
+      // Not the correct kernel to be simulated during the current simulation. 
       if ((unsigned)(pair.first) != (KERNEL_EVALUATION + 1))
-        flag = true;
+        dontNeedFlag = true;
 
-      if (!flag)
-        need_to_read_mem_instns_kernel_block_pair.push_back(pair);
+      if (!dontNeedFlag)
+        kernelBlockPairsNeedRead.push_back(pair);
     }
   }
 
-  tracer.read_mem_instns(false, &need_to_read_mem_instns_kernel_block_pair);
+  if (world.rank() == 1) {
+    for (auto x : kernelBlockPairsNeedRead)
+      std::cout << x.second << " ";
+  }
+  std::cout << std::endl;
+
+auto start = std::chrono::high_resolution_clock::now();
+  tracer.read_mem_instns(false, &kernelBlockPairsNeedRead);
+auto end = std::chrono::high_resolution_clock::now();
+auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+std::cout << "tracer.read_mem_instns Time: " << duration << " ms" << std::endl;
 
   auto issuecfg = tracer.get_issuecfg();
 
@@ -642,6 +660,9 @@ int main(int argc, char **argv) {
   std::vector<std::map<int, std::vector<mem_instn>>> SM_traces_all_passes;
 
   SM_traces_all_passes.resize(passnum_concurrent_issue_to_sm);
+
+
+start = std::chrono::high_resolution_clock::now();
 
   for (int pass = 0; pass < passnum_concurrent_issue_to_sm; pass++) {
     if (pass != (int)KERNEL_EVALUATION)
@@ -744,6 +765,10 @@ int main(int argc, char **argv) {
     single_pass_kernels_info.clear();
   }
 
+end = std::chrono::high_resolution_clock::now();
+duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+std::cout << "insert SM_traces_all_passes Time: " << duration << " ms" << std::endl;
+
 #ifdef USE_BOOST
 
   for (int i = 0; i < passnum_concurrent_issue_to_sm; i++) {
@@ -772,10 +797,18 @@ int main(int argc, char **argv) {
 
 #endif
 
+
+start = std::chrono::high_resolution_clock::now();
+
   if ((unsigned)(tracer.get_the_least_sm_id_of_all_blocks() % world.size()) ==
       (unsigned)world.rank())
-    tracer.read_compute_instns(false,
-                               &need_to_read_mem_instns_kernel_block_pair);
+    tracer.read_compute_instns(false, &kernelBlockPairsNeedRead);
+
+
+end = std::chrono::high_resolution_clock::now();
+duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+std::cout << "read_compute_instns Time: " << duration << " ms" << std::endl;
+
 
   auto start_compute_timer = std::chrono::system_clock::now();
 

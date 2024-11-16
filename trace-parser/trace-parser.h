@@ -278,6 +278,8 @@ public:
 
   std::vector<std::pair<int, int>> get_kernel_block_by_smid(int smid) {
     std::vector<std::pair<int, int>> result;
+    //  Each element in `trace_issued_sm_id_blocks` of type `vector<...>`
+    // is a vector of type `vector<block_info_t>`.
     for (auto iter = trace_issued_sm_id_blocks.begin();
          iter != trace_issued_sm_id_blocks.end(); ++iter) {
       if ((*iter)[0].sm_id == (unsigned)smid) {
@@ -292,7 +294,7 @@ public:
   /// @brief 
   /// @param smid 
   /// @return 
-  std::vector<std::pair<int, int>> get_kernel_block_by_smid_0(int smid) {
+  std::vector<std::pair<int, int>> get_kernel_block_of_all_sms() {
     std::vector<std::pair<int, int>> result;
     for (auto iter = trace_issued_sm_id_blocks.begin();
          iter != trace_issued_sm_id_blocks.end(); ++iter) {
@@ -315,13 +317,17 @@ public:
     return result;
   }
 
-  int get_trace_issued_sms_num() { return trace_issued_sms_num; }
+  inline int get_trace_issued_sms_num() const { return trace_issued_sms_num; }
 
   int get_sm_id_of_one_block(unsigned kernel_id, unsigned block_id);
   int get_sm_id_of_one_block_fast(unsigned kernel_id, unsigned block_id);
 
   std::vector<int> get_trace_issued_sms_vector() {
     return trace_issued_sms_vector;
+  }
+
+  inline int serialNum2Index(const int serial_num) const {
+    return trace_issued_sms_vector[serial_num];
   }
 
 private:
@@ -552,7 +558,7 @@ public:
                             bool PRINT_LOG);
   void judge_concurrent_issue();
 
-  void read_mem_instns(bool PRINT_LOG, std::vector<std::pair<int, int>> *x);
+  void read_mem_instns(bool dump_log, std::vector<std::pair<int, int>> *x);
   void process_mem_instns(std::string mem_instns_filepath, bool PRINT_LOG,
                           std::vector<std::pair<int, int>> *x);
 
@@ -651,6 +657,7 @@ private:
   issue_config issuecfg;
   hw_config *hw_cfg;
 
+  /// Kernel Index -> Block Index -> Mem Instn Indx.
   std::vector<std::vector<std::vector<mem_instn>>> mem_instns;
 
   std::vector<std::vector<std::vector<compute_instn>>> conpute_instns;
