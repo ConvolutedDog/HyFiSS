@@ -136,6 +136,7 @@ void setKernelBlockSizeMap(const std::string &sass_dir) {
   }
 }
 
+/// Determine whether a directory exists.
 bool is_directory_exists(const std::string &dir_path) {
   struct stat statbuf;
   if (stat(dir_path.c_str(), &statbuf) != -1) {
@@ -144,6 +145,7 @@ bool is_directory_exists(const std::string &dir_path) {
   return false;
 }
 
+/// Remove all content in one directory.
 void remove_directory_contents(const std::string &dir_path) {
   DIR *dir = opendir(dir_path.c_str());
   struct dirent *next_file;
@@ -159,6 +161,8 @@ void remove_directory_contents(const std::string &dir_path) {
   closedir(dir);
 }
 
+/// The target traces already exists, users confirm whether to
+/// overwrite them.
 bool user_confirms() {
   std::string input;
   while (true) {
@@ -175,7 +179,13 @@ bool user_confirms() {
   }
 }
 
+/// If the user has confirmed whether the original content has
+/// been overwritten when processing the sass instructions, avoid
+/// asking again when processing the memory instructions.
 bool first_user_confirms = false;
+
+/// If a directory exists, remove all of its contents, and if it
+/// doesn't, just create it.
 void create_directory_if_not_exists(const std::string &dir_path) {
   if (!is_directory_exists(dir_path)) {
     mkdir(dir_path.c_str(), 0777);
