@@ -568,6 +568,9 @@ public:
   void process_compute_instns_fast(std::string compute_instns_dir,
                                    bool PRINT_LOG,
                                    std::vector<std::pair<int, int>> *x);
+  void process_compute_instns_fast1(std::string compute_instns_dir,
+                                   bool PRINT_LOG,
+                                   std::vector<std::pair<int, int>> *x);
 
   kernel_trace_t *parse_kernel_info(const std::string &kerneltraces_filepath);
   kernel_trace_t *parse_kernel_info(int kernel_id, bool PRINT_LOG);

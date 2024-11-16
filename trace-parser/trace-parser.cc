@@ -924,19 +924,24 @@ void trace_parser::process_compute_instns(std::string compute_instns_dir,
   closedir(dir);
 }
 
-void trace_parser::process_compute_instns_fast(
+/**********************************************************************************/
+void trace_parser::process_compute_instns_fast1(
     std::string compute_instns_dir, bool PRINT_LOG,
     std::vector<std::pair<int, int>> *x) {
   DIR *dir;
   struct dirent *entry;
 
 // auto start1 = std::chrono::high_resolution_clock::now();
+// std::cout << compute_instns_dir << std::endl;
 
-std::cout << compute_instns_dir << std::endl;
+
+
   /// TODO: `opendir` will consume a ton of time.
   if ((dir = opendir(compute_instns_dir.c_str())) == nullptr)
     std::cerr << "Not exist directory " << compute_instns_dir
               << ", please check." << std::endl;
+
+
 
 // auto end1 = std::chrono::high_resolution_clock::now();
 // auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - start1).count();
@@ -1022,6 +1027,105 @@ std::cout << compute_instns_dir << std::endl;
   }
 
   closedir(dir);
+}
+/**********************************************************************************/
+
+void trace_parser::process_compute_instns_fast(
+    std::string compute_instns_dir, bool PRINT_LOG,
+    std::vector<std::pair<int, int>> *x) {
+
+
+  std::ifstream content_file(compute_instns_dir + std::string("/content.txt"));
+  if (!content_file.is_open()) {
+    std::cerr << "Failed to open content.txt, please check." << std::endl;
+    abort();
+  }
+
+  static const std::regex pattern(
+      R"(kernel_(\d+)_gwarp_id_(\d+)\.split\.sass)");
+  std::smatch match;
+
+  std::string filepath, filename;
+  size_t pos_last_slash;
+
+// auto start1 = std::chrono::high_resolution_clock::now();
+
+  while (std::getline(content_file, filepath)) {
+
+    pos_last_slash = filepath.find_last_of("/");
+    filename = filepath.substr(pos_last_slash + 1);
+    
+    std::smatch match;
+
+    bool flag = std::regex_search(filename, match, pattern);
+
+    if (flag) {
+
+      int kernel_id = std::stoi(match[1]);
+      int gwarp_id = std::stoi(match[2]);
+      
+      std::string compute_instns_filepath = filepath;
+      // other codes
+      int num_warps_per_block =
+        get_appcfg()->get_num_warp_per_block(kernel_id - 1);
+
+      int block_id = (int)(gwarp_id / num_warps_per_block);
+
+      if (!judge_format_compute_kernel_id_fast(kernel_id, block_id, x))
+        continue;
+
+      std::ifstream fs(compute_instns_filepath);
+
+      if (!fs.is_open()) {
+        std::cout << "Unable to open file: " << compute_instns_filepath
+                  << std::endl;
+        exit(1);
+      }
+
+      char buf[BUFSIZ * 10];
+      fs.rdbuf()->pubsetbuf(buf, sizeof(buf));
+
+      std::string line;
+      while (!fs.eof()) {
+        getline(fs, line);
+        if (line.empty())
+          continue;
+        else {
+          unsigned _pc;
+
+          std::string _mask_str;
+          unsigned _mask;
+
+          char mask_str[9];
+
+          std::istringstream iss(line);
+          iss >> std::hex >> _pc >> mask_str;
+
+          _mask_str = std::string(mask_str);
+
+          if (_mask_str == "!")
+            _mask = 0xffffffff;
+          else {
+            _mask = (unsigned)std::stoul(_mask_str, nullptr, 16);
+          }
+
+          _inst_trace_t *_inst_trace =
+            (*get_instncfg()->get_instn_info_vector())[std::make_pair(kernel_id - 1, _pc)];
+
+          conpute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
+            kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, NULL));
+        }
+      }
+      fs.close();
+    }
+
+  }
+
+// auto end1 = std::chrono::high_resolution_clock::now();
+// auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - start1).count();
+// if (duration1 > 0) std::cout << "opendir Time: " << duration1 << " ms" << std::endl;
+
+  content_file.close();
 }
 
 void trace_parser::read_compute_instns(bool PRINT_LOG,
