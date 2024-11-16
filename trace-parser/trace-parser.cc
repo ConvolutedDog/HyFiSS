@@ -925,7 +925,7 @@ void trace_parser::process_compute_instns(std::string compute_instns_dir,
 }
 
 /**********************************************************************************/
-void trace_parser::process_compute_instns_fast1(
+void trace_parser::process_compute_instns_fast(
     std::string compute_instns_dir, bool PRINT_LOG,
     std::vector<std::pair<int, int>> *x) {
   DIR *dir;
@@ -1030,7 +1030,7 @@ void trace_parser::process_compute_instns_fast1(
 }
 /**********************************************************************************/
 
-void trace_parser::process_compute_instns_fast(
+void trace_parser::process_compute_instns_fast1(
     std::string compute_instns_dir, bool PRINT_LOG,
     std::vector<std::pair<int, int>> *x) {
 
