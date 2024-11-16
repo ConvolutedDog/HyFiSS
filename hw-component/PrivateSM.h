@@ -14,7 +14,7 @@
 #include "../hw-parser/hw-parser.h"
 #include "../trace-driven/entry.h"
 #include "../trace-driven/register-set.h"
-#include "RegisterBankAllocator.h"
+#include "RegBankAlloc.h"
 #include "Scoreboard.h"
 
 #include "OperandCollector.h"
@@ -1079,7 +1079,7 @@ public:
   void issue_warp(register_set &pipe_reg_set, ibuffer_entry entry,
                   unsigned sch_id);
 
-  RegisterBankAllocator *get_reg_bank_allocator() {
+  regBankAlloc *get_reg_bank_allocator() {
     return m_reg_bank_allocator;
   }
 
@@ -1258,7 +1258,7 @@ private:
 
   std::vector<int> last_issue_block_index_per_sched;
 
-  RegisterBankAllocator *m_reg_bank_allocator;
+  regBankAlloc *m_reg_bank_allocator;
 
   opndcoll_rfu_t *m_operand_collector;
 

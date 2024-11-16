@@ -297,8 +297,12 @@ int issue_config::get_sm_id_of_one_block_fast(unsigned kernel_id,
   return trace_issued_sm_id_blocks_map[std::make_pair(kernel_id, block_id)];
 }
 
-std::vector<block_info_t>
-issue_config::parse_blocks_info(const std::string &blocks_info_str) {
+/// @brief Parse the thread block info from the string.
+/// @param blocks_info_str The string indicates the thread blocks that
+///        are being emitted to an SM.
+/// @return A vector of type `std::vector<block_info_t>`.
+std::vector<block_info_t> issue_config::parse_blocks_info(
+  const std::string &blocks_info_str) {
   std::vector<block_info_t> result;
   size_t start = 0;
   size_t end = blocks_info_str.find(',', start);
@@ -309,7 +313,6 @@ issue_config::parse_blocks_info(const std::string &blocks_info_str) {
   int sm_id = std::stoi(blocks_info_str.substr(start, end - start));
 
   for (int i = 0; i < total_tuples; ++i) {
-
     start = end + 1;
     end = blocks_info_str.find('(', start);
     size_t comma = blocks_info_str.find(',', end);
@@ -339,18 +342,22 @@ issue_config::parse_blocks_info(const std::string &blocks_info_str) {
   return result;
 }
 
-void issue_config::init(std::string config_path, bool PRINT_LOG) {
+void issue_config::init(const std::string config_path, bool dump_log) {
   std::stringstream ss;
 
   std::ifstream inputFile;
   inputFile.open(config_path);
   if (!inputFile.good()) {
-    fprintf(stderr, "\n\nOptionParser ** ERROR: Cannot open config file '%s'\n",
+    fprintf(stderr, "\n\nERROR: Cannot open issue.config file '%s'\n",
             config_path.c_str());
     exit(1);
   }
 
+  // Target of `trace_issued_sms_num` means the number of SMs that the
+  // application emits thread blocks to.
   std::string target1 = "-trace_issued_sms_num";
+  // Target of `trace_issued_sms_vector` means the indexes of SMs that
+  // the application emits thread blocks to.
   std::string target2 = "-trace_issued_sms_vector";
   std::string line;
   size_t commentStart;
@@ -365,7 +372,7 @@ void issue_config::init(std::string config_path, bool PRINT_LOG) {
     found2 = line.find(target2);
     if (found1 != std::string::npos) {
       result1 = line.substr(found1 + target1.length() + 1);
-
+      // The number of SMs that the application emits thread blocks to.
       trace_issued_sms_num = std::stoi(result1);
     }
     if (found2 != std::string::npos) {
@@ -373,6 +380,7 @@ void issue_config::init(std::string config_path, bool PRINT_LOG) {
 
       std::istringstream iss(result2);
       std::string token;
+      // The indexes of SMs that the application emits thread blocks to.
       while (std::getline(iss, token, ',')) {
         trace_issued_sms_vector.push_back(std::stoi(token));
       }
@@ -381,6 +389,8 @@ void issue_config::init(std::string config_path, bool PRINT_LOG) {
   inputFile.clear();
   inputFile.seekg(0, std::ios::beg);
 
+  // An object of type `vector<string>`. It stores the string of thread
+  // blocks that are emitted to each SM.
   trace_issued_sm_id_blocks_str.resize(trace_issued_sms_num);
 
   std::vector<int> has_found_j;
@@ -390,12 +400,18 @@ void issue_config::init(std::string config_path, bool PRINT_LOG) {
     if (commentStart != line.npos)
       continue;
 
+    // There is such a scenario that the SMs to which the thread blocks
+    // are emitted may not be indexed in the order from 0 to 1 to 2, for
+    // example, it may be that SM-0, SM-2, and SM-4 to which the thread
+    // blocks are emitted to.
     for (int j = 0; j < trace_issued_sms_num; ++j) {
+      /// TODO: This loop here need to be replaced, cause none-loop can
+      /// also impletement this function.
       if (std::find(has_found_j.begin(), has_found_j.end(), j) ==
           has_found_j.end()) {
-        int sm_num = trace_issued_sms_vector[j];
+        int sm_index = trace_issued_sms_vector[j];
         ss.str("");
-        ss << "-trace_issued_sm_id_" << std::to_string(sm_num);
+        ss << "-trace_issued_sm_id_" << std::to_string(sm_index);
         size_t found = line.find(ss.str());
         if (found != std::string::npos) {
           has_found_j.push_back(j);
@@ -408,14 +424,16 @@ void issue_config::init(std::string config_path, bool PRINT_LOG) {
   }
   inputFile.close();
 
-  if (PRINT_LOG)
+  if (dump_log)
     fprintf(stdout, ">>> ISSUE config Options <<<:\n");
 
   std::string blocks_info_str;
   trace_issued_sm_id_blocks.resize(trace_issued_sms_num);
   for (int j = 0; j < trace_issued_sms_num; ++j) {
-
     blocks_info_str = trace_issued_sm_id_blocks_str[j].c_str();
+    // `parse_blocks_info` is used to parse the thread block info from
+    // the string. Each element in `trace_issued_sm_id_blocks` of type
+    // `vector<...>` is a vector of type `vector<block_info_t>`.
     trace_issued_sm_id_blocks[j] = parse_blocks_info(blocks_info_str);
   }
 

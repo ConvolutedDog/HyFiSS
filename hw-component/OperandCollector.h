@@ -11,7 +11,7 @@
 #include "../trace-driven/register-set.h"
 #include "../trace-driven/trace-warp-inst.h"
 #include "../trace-parser/trace-parser.h"
-#include "RegisterBankAllocator.h"
+#include "RegBankAlloc.h"
 
 #ifndef OPERAND_COLLECTOR_H
 #define OPERAND_COLLECTOR_H
@@ -32,29 +32,17 @@ unsigned register_bank_opcoll(unsigned regnum, unsigned wid, unsigned num_banks,
 
 class opndcoll_rfu_t {
 public:
-  opndcoll_rfu_t() {
-    m_num_banks = 0;
+  opndcoll_rfu_t();
 
-    m_initialized = false;
-  }
-
-  opndcoll_rfu_t(hw_config *hw_cfg, RegisterBankAllocator *reg_bank_allocator,
-                 trace_parser *tracer) {
-    m_num_banks = 0;
-
-    m_initialized = false;
-    m_reg_bank_allocator = reg_bank_allocator;
-
-    m_hw_cfg = hw_cfg;
-    m_tracer = tracer;
-  }
+  opndcoll_rfu_t(hw_config *hw_cfg, regBankAlloc *reg_bank_allocator,
+                 trace_parser *tracer);
 
   void add_cu_set(unsigned cu_set, unsigned num_cu, unsigned num_dispatch);
   typedef std::vector<register_set *> port_vector_t;
   typedef std::vector<unsigned int> uint_vector_t;
   void add_port(port_vector_t &input, port_vector_t &ouput,
                 uint_vector_t cu_sets);
-  void init(hw_config *hw_cfg, RegisterBankAllocator *reg_bank_allocator,
+  void init(hw_config *hw_cfg, regBankAlloc *reg_bank_allocator,
             trace_parser *tracer);
 
   void step(
@@ -272,7 +260,7 @@ private:
   class allocation_t {
   public:
     allocation_t() { m_allocation = FREE; }
-    allocation_t(RegisterBankAllocator *reg_bank_allocator, unsigned bank_id) {
+    allocation_t(regBankAlloc *reg_bank_allocator, unsigned bank_id) {
       m_reg_bank_allocator = reg_bank_allocator;
       m_allocation = m_reg_bank_allocator->getBankState(bank_id);
     }
@@ -306,9 +294,9 @@ private:
     void reset() { m_reg_bank_allocator->releaseBankState(m_op.get_bank()); }
 
   private:
-    enum Register_Bank_State m_allocation;
+    enum RegBankState m_allocation;
     op_t m_op;
-    RegisterBankAllocator *m_reg_bank_allocator;
+    regBankAlloc *m_reg_bank_allocator;
   };
 
   class arbiter_t {
@@ -322,7 +310,7 @@ private:
       _request = NULL;
       m_last_cu = 0;
     }
-    arbiter_t(RegisterBankAllocator *reg_bank_allocator) {
+    arbiter_t(regBankAlloc *reg_bank_allocator) {
       m_queue = NULL;
       m_allocated_bank = NULL;
       m_allocator_rr_head = NULL;
@@ -457,7 +445,7 @@ private:
     int *_outmatch;
     int **_request;
 
-    RegisterBankAllocator *m_reg_bank_allocator;
+    regBankAlloc *m_reg_bank_allocator;
   };
 
 public:
@@ -679,7 +667,7 @@ private:
   std::vector<dispatch_unit_t> m_dispatch_units;
 
   hw_config *m_hw_cfg;
-  RegisterBankAllocator *m_reg_bank_allocator;
+  regBankAlloc *m_reg_bank_allocator;
   trace_parser *m_tracer;
 
 public:

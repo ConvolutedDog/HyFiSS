@@ -11,7 +11,7 @@
 
 #define MHZ *1000000
 
-#define _CALIBRATION_LOG_ 0
+#define CALIBRATION_LOG_ENABLED 0
 
 enum pipeline_stage_name_t {
   ID_OC_SP = 0,
@@ -390,7 +390,7 @@ public:
   unsigned get_opcode_initiation_interval_tensor_core() const {
     return opcode_initiation_interval_tensor_core;
   }
-  bool get_sub_core_model() const { return sub_core_model; }
+  inline bool get_sub_core_model() const { return sub_core_model; }
   unsigned get_operand_collector_num_units_gen() const {
     return operand_collector_num_units_gen;
   }

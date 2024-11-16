@@ -1,24 +1,28 @@
 #include "PipelineUnit.h"
 
 pipelined_simd_unit::pipelined_simd_unit(register_set *result_port,
-                                         unsigned max_latency,
-                                         unsigned issue_reg_id,
+                                         const unsigned max_latency,
+                                         const unsigned issue_reg_id,
                                          hw_config *hw_cfg,
-                                         trace_parser *tracer) {
-  m_pipeline_depth = max_latency;
+                                         trace_parser *tracer)
+  : m_pipeline_depth(max_latency), m_result_port(result_port),
+    m_issue_reg_id(issue_reg_id), m_hw_cfg(hw_cfg),
+    m_tracer(tracer), m_dispatch_reg(new inst_fetch_buffer_entry()) {
   m_pipeline_reg.reserve(m_pipeline_depth);
-  for (unsigned i = 0; i < m_pipeline_depth; i++) {
-    m_pipeline_reg.push_back(new inst_fetch_buffer_entry());
+  /// TODO: With emplace_back, objects can be constructed directly
+  /// inside the container, avoiding additional copying or moving
+  /// operations.
+  for (unsigned i = 0; i < m_pipeline_depth; ++i) {
+    m_pipeline_reg.emplace_back(new inst_fetch_buffer_entry());
   }
-  m_result_port = result_port;
-  m_issue_reg_id = issue_reg_id;
-  m_dispatch_reg = new inst_fetch_buffer_entry();
-  m_hw_cfg = hw_cfg;
-  m_tracer = tracer;
   occupied.reset();
   active_insts_in_pipeline = 0;
 }
 
+/// TODO: Consider using smart pointers, such as `std::unique_ptr` or
+/// `std::shared_ptr`, so that the object automatically frees up re-
+/// sources at the end of its natural lifecycle, reducing the need for
+/// explicit deletion operations.
 pipelined_simd_unit::~pipelined_simd_unit() {
   for (unsigned i = 0; i < m_pipeline_depth; i++) {
     delete m_pipeline_reg[i];
@@ -26,66 +30,58 @@ pipelined_simd_unit::~pipelined_simd_unit() {
   delete m_dispatch_reg;
 }
 
-bool pipelined_simd_unit::can_issue(unsigned latency) const {
-
+inline bool pipelined_simd_unit::can_issue(const unsigned latency) const {
   return !m_dispatch_reg->m_valid && !occupied.test(latency);
 }
 
 std::vector<unsigned> pipelined_simd_unit::cycle(
-    trace_parser *tracer, Scoreboard *m_scoreboard, app_config *appcfg,
-    std::vector<std::pair<int, int>> *kernel_block_pair,
-    std::vector<unsigned> *m_num_warps_per_sm, unsigned KERNEL_EVALUATION,
-    unsigned num_scheds, RegisterBankAllocator *m_reg_bank_allocator,
-    bool *flag_Writeback_Memory_Structural_bank_of_reg_is_not_idle,
-    std::map<std::tuple<unsigned, unsigned, unsigned>,
-             std::tuple<unsigned, unsigned, unsigned, unsigned, unsigned,
-                        unsigned>> *clk_record,
-    unsigned m_cycle) {
-
+  trace_parser *tracer, Scoreboard *m_scoreboard, app_config *appcfg,
+  std::vector<std::pair<int, int>> *kernel_block_pair,
+  std::vector<unsigned> *m_num_warps_per_sm, unsigned KERNEL_EVALUATION,
+  unsigned num_scheds, regBankAlloc *m_reg_bank_allocator,
+  bool *flag_Writeback_Memory_Structural_bank_of_reg_is_not_idle,
+  std::map<std::tuple<unsigned, unsigned, unsigned>,
+           std::tuple<unsigned, unsigned, unsigned,
+                      unsigned, unsigned, unsigned>> *clk_record,
+  unsigned m_cycle) {
+  /// TODO: May change this name to active_wids
   std::vector<unsigned> need_to_return_wids;
 
+  // The inst in `m_pipeline_reg[0]` has been executed, and it can be
+  // issued into the `m_result_port`.
   if (m_pipeline_reg[0]->m_valid && (m_result_port->get_free() != NULL)) {
-    if (_CALIBRATION_LOG_) {
-      std::cout << "    Execute: (" << m_pipeline_reg[0]->kid << ", "
-                << m_pipeline_reg[0]->wid << ", " << m_pipeline_reg[0]->uid
-                << ", " << m_pipeline_reg[0]->pc << ")" << std::endl;
-    }
+    dump_m_pipeline_reg_front();
+    /// TODO: Need explain in detail.
     set_clk_record<4>(clk_record, m_pipeline_reg[0]->kid,
                       m_pipeline_reg[0]->wid, m_pipeline_reg[0]->uid, m_cycle);
 
-    if (m_result_port->get_free() != NULL) {
-      need_to_return_wids.push_back(m_pipeline_reg[0]->wid);
+    need_to_return_wids.push_back(m_pipeline_reg[0]->wid);
 
-      m_result_port->move_in(m_pipeline_reg[0]);
-      assert(active_insts_in_pipeline > 0);
-      active_insts_in_pipeline--;
-    }
+    m_result_port->move_in(m_pipeline_reg[0]);
+    assert(active_insts_in_pipeline > 0);
+    active_insts_in_pipeline--;
   }
 
   if (active_insts_in_pipeline) {
-    for (unsigned stage = 0; stage < m_pipeline_depth - 1; stage++) {
-      if (!m_pipeline_reg[stage]->m_valid) {
-        need_to_return_wids.push_back(m_pipeline_reg[stage + 1]->wid);
-        m_pipeline_reg[stage]->m_valid = m_pipeline_reg[stage + 1]->m_valid;
-        m_pipeline_reg[stage]->pc = m_pipeline_reg[stage + 1]->pc;
-        m_pipeline_reg[stage]->wid = m_pipeline_reg[stage + 1]->wid;
-        m_pipeline_reg[stage]->kid = m_pipeline_reg[stage + 1]->kid;
-        m_pipeline_reg[stage]->uid = m_pipeline_reg[stage + 1]->uid;
-        m_pipeline_reg[stage]->latency = m_pipeline_reg[stage + 1]->latency;
-        m_pipeline_reg[stage]->initial_interval =
-            m_pipeline_reg[stage + 1]->initial_interval;
-        m_pipeline_reg[stage + 1]->m_valid = false;
+    /// TODO: Using `std::swap(m_pipeline_reg[stage], m_pipeline_reg[stage+1]);`
+    /// will cause performance degradation and it is not known for some reason.
+    for (unsigned stage = 0; stage < m_pipeline_depth - 1; ++stage) {
+      auto& current = *m_pipeline_reg[stage];
+      if (!current.m_valid) {
+        auto& next = *m_pipeline_reg[stage + 1];
+        need_to_return_wids.push_back(next.wid);
+        // Use copy assignment operators for fast replication of data.
+        current = std::move(next);
+        next.m_valid = false;
       }
     }
   }
 
   if (m_dispatch_reg->m_valid) {
-
     if (m_dispatch_reg->initial_interval_dec_counter == 1) {
-      int start_stage =
-          m_dispatch_reg->latency - m_dispatch_reg->initial_interval;
-      if (start_stage < 0)
-        start_stage = 0;
+      int start_stage = m_dispatch_reg->latency - m_dispatch_reg->initial_interval;
+      if (start_stage < 0) start_stage = 0;
+      /// TODO: May don't need this again.
       if ((unsigned)start_stage >= m_pipeline_depth)
         start_stage = m_pipeline_depth - 1;
 
@@ -93,17 +89,19 @@ std::vector<unsigned> pipelined_simd_unit::cycle(
 
       if (m_pipeline_reg[start_stage]->m_valid == false) {
         need_to_return_wids.push_back(m_dispatch_reg->wid);
-
-        m_dispatch_reg->m_valid = false;
         active_insts_in_pipeline++;
-        m_pipeline_reg[start_stage]->m_valid = true;
-        m_pipeline_reg[start_stage]->pc = m_dispatch_reg->pc;
-        m_pipeline_reg[start_stage]->wid = m_dispatch_reg->wid;
-        m_pipeline_reg[start_stage]->kid = m_dispatch_reg->kid;
-        m_pipeline_reg[start_stage]->uid = m_dispatch_reg->uid;
-        m_pipeline_reg[start_stage]->latency = m_dispatch_reg->latency;
-        m_pipeline_reg[start_stage]->initial_interval =
-            m_dispatch_reg->initial_interval;
+        /// TODO: The performance degradation caused by using `std::move`
+        /// needs to be addressed, original code:
+        ///   m_pipeline_reg[start_stage]->m_valid = true;
+        ///   m_pipeline_reg[start_stage]->pc = m_dispatch_reg->pc;
+        ///   m_pipeline_reg[start_stage]->wid = m_dispatch_reg->wid;
+        ///   m_pipeline_reg[start_stage]->kid = m_dispatch_reg->kid;
+        ///   m_pipeline_reg[start_stage]->uid = m_dispatch_reg->uid;
+        ///   m_pipeline_reg[start_stage]->latency = m_dispatch_reg->latency;
+        ///   m_pipeline_reg[start_stage]->initial_interval = 
+        ///     m_dispatch_reg->initial_interval;
+        *m_pipeline_reg[start_stage] = std::move(*m_dispatch_reg);
+        m_dispatch_reg->m_valid = false;
       }
     } else {
       m_dispatch_reg->initial_interval_dec_counter--;
@@ -330,7 +328,7 @@ std::vector<unsigned> mem_unit::cycle(
     trace_parser *tracer, Scoreboard *m_scoreboard, app_config *appcfg,
     std::vector<std::pair<int, int>> *kernel_block_pair,
     std::vector<unsigned> *m_num_warps_per_sm, unsigned KERNEL_EVALUATION,
-    unsigned num_scheds, RegisterBankAllocator *m_reg_bank_allocator,
+    unsigned num_scheds, regBankAlloc *m_reg_bank_allocator,
     bool *flag_Writeback_Memory_Structural_bank_of_reg_is_not_idle,
     std::map<std::tuple<unsigned, unsigned, unsigned>,
              std::tuple<unsigned, unsigned, unsigned, unsigned, unsigned,
@@ -338,7 +336,7 @@ std::vector<unsigned> mem_unit::cycle(
     unsigned m_cycle) {
   std::vector<unsigned> need_to_return_wids;
   if (m_pipeline_reg[0]->m_valid) {
-    if (_CALIBRATION_LOG_) {
+    if (CALIBRATION_LOG_ENABLED) {
       std::cout << "    Execute: (" << m_pipeline_reg[0]->kid << ", "
                 << m_pipeline_reg[0]->wid << ", " << m_pipeline_reg[0]->uid
                 << ", " << m_pipeline_reg[0]->pc << ")" << std::endl;
@@ -433,7 +431,7 @@ std::vector<unsigned> mem_unit::cycle(
 
       for (auto regnum : need_write_back_regs_num) {
 
-        m_scoreboard->releaseRegisters(global_all_kernels_warp_id, regnum);
+        m_scoreboard->releaseRegister(global_all_kernels_warp_id, regnum);
       }
     }
   }
