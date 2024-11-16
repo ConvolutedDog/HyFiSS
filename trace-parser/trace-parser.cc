@@ -927,13 +927,20 @@ void trace_parser::process_compute_instns(std::string compute_instns_dir,
 void trace_parser::process_compute_instns_fast(
     std::string compute_instns_dir, bool PRINT_LOG,
     std::vector<std::pair<int, int>> *x) {
-
   DIR *dir;
   struct dirent *entry;
 
+// auto start1 = std::chrono::high_resolution_clock::now();
+
+std::cout << compute_instns_dir << std::endl;
+  /// TODO: `opendir` will consume a ton of time.
   if ((dir = opendir(compute_instns_dir.c_str())) == nullptr)
     std::cerr << "Not exist directory " << compute_instns_dir
               << ", please check." << std::endl;
+
+// auto end1 = std::chrono::high_resolution_clock::now();
+// auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - start1).count();
+// if (duration1 > 0) std::cout << "opendir Time: " << duration1 << " ms" << std::endl;
 
   static const std::regex pattern(
       R"(kernel_(\d+)_gwarp_id_(\d+)\.split\.sass)");
