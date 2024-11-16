@@ -713,7 +713,7 @@ bool judge_format_compute_block_id(int kernel_id, int block_id,
 }
 
 void trace_parser::process_mem_instns(const std::string mem_instns_dir,
-                                      bool PRINT_LOG,
+                                      bool dump_log,
                                       std::vector<std::pair<int, int>> *x) {
   mem_instns.resize(appcfg.get_kernels_num());
   for (unsigned kid = 0; kid < appcfg.get_kernels_num(); ++kid)
@@ -741,6 +741,8 @@ void trace_parser::process_mem_instns(const std::string mem_instns_dir,
       if (std::regex_search(search, match, pattern)) {
         int kernel_id = std::stoi(match[1]);
         int block_id = std::stoi(match[2]);
+
+        // std::cout << "kernel_id: " << kernel_id << std::endl;
 
         std::ifstream fs;
         fs.open(mem_instns_filepath);
@@ -822,7 +824,7 @@ void trace_parser::process_mem_instns(const std::string mem_instns_dir,
   closedir(dir);
 }
 
-void trace_parser::read_mem_instns(bool PRINT_LOG,
+void trace_parser::read_mem_instns(bool dump_log,
                                    std::vector<std::pair<int, int>> *x) {
   if (configs_filepath.back() == '/') {
     mem_instns_dir = configs_filepath + "../memory_traces";
@@ -835,7 +837,7 @@ void trace_parser::read_mem_instns(bool PRINT_LOG,
     mem_instns[kid].resize(appcfg.get_kernel_grid_size(kid));
   }
 
-  process_mem_instns(mem_instns_dir, PRINT_LOG, x);
+  process_mem_instns(mem_instns_dir, dump_log, x);
 }
 
 void trace_parser::process_compute_instns(std::string compute_instns_dir,
