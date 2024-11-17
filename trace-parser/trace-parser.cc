@@ -825,11 +825,16 @@ void trace_parser::process_mem_instns(const std::string mem_instns_dir,
 }
 
 void trace_parser::read_mem_instns(bool dump_log,
-                                   std::vector<std::pair<int, int>> *x) {
+                                   std::vector<std::pair<int, int>> *x,
+                                   unsigned kernel_id) {
   if (configs_filepath.back() == '/') {
-    mem_instns_dir = configs_filepath + "../memory_traces";
+    // mem_instns_dir = configs_filepath + "../memory_traces";
+    mem_instns_dir = configs_filepath + "../memory_traces" +
+      "/kernel-" + std::to_string(kernel_id);
   } else {
-    mem_instns_dir = configs_filepath + "/" + "../memory_traces";
+    // mem_instns_dir = configs_filepath + "/" + "../memory_traces";
+    mem_instns_dir = configs_filepath + "/" + "../memory_traces" +
+      "/kernel-" + std::to_string(kernel_id);
   }
 
   mem_instns.resize(appcfg.get_kernels_num());
@@ -924,8 +929,109 @@ void trace_parser::process_compute_instns(std::string compute_instns_dir,
   closedir(dir);
 }
 
-/**********************************************************************************/
 void trace_parser::process_compute_instns_fast(
+    std::string compute_instns_dir, bool PRINT_LOG,
+    std::vector<std::pair<int, int>> *x) {
+  DIR *dir;
+  struct dirent *entry;
+
+  /// TODO: `opendir` will consume a ton of time.
+  if ((dir = opendir(compute_instns_dir.c_str())) == nullptr)
+    std::cerr << "Not exist directory " << compute_instns_dir
+              << ", please check." << std::endl;
+
+  static const std::regex pattern(
+      R"(kernel_(\d+)_block_(\d+)\.sass)");
+  std::smatch match;
+
+auto start1 = std::chrono::high_resolution_clock::now();
+
+  while ((entry = readdir(dir)) != nullptr) {
+    if (entry->d_type == DT_REG) {
+
+      auto search = std::string(entry->d_name);
+
+      if (std::regex_search(search, match, pattern)) {
+        int kernel_id = std::stoi(match[1]);
+        int block_id = std::stoi(match[2]);
+
+        if (!judge_format_compute_kernel_id_fast(kernel_id, block_id, x))
+          continue;
+
+        std::string compute_instns_filepath =
+            compute_instns_dir + "/" + entry->d_name;
+
+        const char *file_path = compute_instns_filepath.data();
+        FILE* file = fopen(file_path, "rb");
+        if (!file) {
+          printf("Cannot open file: %s\n", file_path);
+          abort();
+        }
+        fseek(file, 0, SEEK_END);
+        long fsize = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        char* string = (char*)malloc(fsize + 1);
+        fread(string, 1, fsize, file);
+        string[fsize] = '\0';
+        fclose(file);
+
+        char* line = string;
+        char* next_line = nullptr;
+        unsigned _pc, _mask, gwarp_id;
+        char* context_end = string + fsize;
+
+        while(line < context_end) {
+          next_line = strchr(line, '\n');
+          if(next_line != nullptr) {
+            *next_line = '\0';
+          }
+
+          if(*line == '\0') {
+            line = next_line + 1;
+            continue;
+          }
+
+          char mask_str[9] = {0};
+
+          if (sscanf(line, "%x %8s %u", &_pc, mask_str, &gwarp_id) == 3) {
+            std::string _mask_str(mask_str);
+
+            if (_mask_str == "!") {
+              _mask = 0xffffffff;
+            } else {
+              _mask = static_cast<unsigned>(std::stoul(_mask_str, nullptr, 16));
+            }
+
+            _inst_trace_t* _inst_trace =
+              (*get_instncfg()->get_instn_info_vector())[std::make_pair(kernel_id - 1, _pc)];
+
+            conpute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
+              kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, nullptr));
+          }
+
+          if(next_line != nullptr) {
+            line = next_line + 1;
+          } else {
+            break;
+          }
+        }
+
+        free(string);
+      } else {
+        std::cerr << "Wrong name format of memory trace file: " << entry->d_name
+                  << std::endl;
+      }
+    }
+  }
+
+auto end1 = std::chrono::high_resolution_clock::now();
+auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>(end1 - start1).count();
+if (duration1 > 0) std::cout << "Process Compute Instns Time: " << duration1 << " us" << std::endl;
+
+  closedir(dir);
+}
+
+void trace_parser::process_compute_instns_fast1(
     std::string compute_instns_dir, bool PRINT_LOG,
     std::vector<std::pair<int, int>> *x) {
   DIR *dir;
@@ -1028,13 +1134,10 @@ void trace_parser::process_compute_instns_fast(
 
   closedir(dir);
 }
-/**********************************************************************************/
 
-void trace_parser::process_compute_instns_fast1(
+void trace_parser::process_compute_instns_fast2(
     std::string compute_instns_dir, bool PRINT_LOG,
     std::vector<std::pair<int, int>> *x) {
-
-
   std::ifstream content_file(compute_instns_dir + std::string("/content.txt"));
   if (!content_file.is_open()) {
     std::cerr << "Failed to open content.txt, please check." << std::endl;
@@ -1129,11 +1232,16 @@ void trace_parser::process_compute_instns_fast1(
 }
 
 void trace_parser::read_compute_instns(bool PRINT_LOG,
-                                       std::vector<std::pair<int, int>> *x) {
+                                       std::vector<std::pair<int, int>> *x,
+                                       unsigned kernel_id) {
   if (configs_filepath.back() == '/') {
-    compute_instns_dir = configs_filepath + "../sass_traces";
+    // compute_instns_dir = configs_filepath + "../sass_traces";
+    compute_instns_dir = configs_filepath + "../sass_traces" +
+      "/kernel-" + std::to_string(kernel_id);
   } else {
-    compute_instns_dir = configs_filepath + "/" + "../sass_traces";
+    // compute_instns_dir = configs_filepath + "/" + "../sass_traces";
+    compute_instns_dir = configs_filepath + "/" + "../sass_traces" +
+      "/kernel-" + std::to_string(kernel_id);
   }
 
   conpute_instns.resize(appcfg.get_kernels_num());

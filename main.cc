@@ -564,7 +564,7 @@ int main(int argc, char **argv) {
   std::cout << std::endl;
 
 auto start = std::chrono::high_resolution_clock::now();
-  tracer.read_mem_instns(false, &kernelBlockPairsNeedRead);
+  tracer.read_mem_instns(false, &kernelBlockPairsNeedRead, KERNEL_EVALUATION + 1);
 auto end = std::chrono::high_resolution_clock::now();
 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 std::cout << "tracer.read_mem_instns Time: " << duration << " ms" << std::endl;
@@ -802,7 +802,7 @@ start = std::chrono::high_resolution_clock::now();
 
   if ((unsigned)(tracer.get_the_least_sm_id_of_all_blocks() % world.size()) ==
       (unsigned)world.rank())
-    tracer.read_compute_instns(false, &kernelBlockPairsNeedRead);
+    tracer.read_compute_instns(false, &kernelBlockPairsNeedRead, KERNEL_EVALUATION + 1);
 
 
 end = std::chrono::high_resolution_clock::now();

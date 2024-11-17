@@ -558,19 +558,24 @@ public:
                             bool PRINT_LOG);
   void judge_concurrent_issue();
 
-  void read_mem_instns(bool dump_log, std::vector<std::pair<int, int>> *x);
+  void read_mem_instns(bool dump_log, std::vector<std::pair<int, int>> *x,
+                       unsigned kernel_id);
   void process_mem_instns(std::string mem_instns_filepath, bool PRINT_LOG,
                           std::vector<std::pair<int, int>> *x);
 
-  void read_compute_instns(bool PRINT_LOG, std::vector<std::pair<int, int>> *x);
+  void read_compute_instns(bool PRINT_LOG, std::vector<std::pair<int, int>> *x,
+                           unsigned kernel_id);
   void process_compute_instns(std::string compute_instns_dir, bool PRINT_LOG,
                               std::vector<std::pair<int, int>> *x);
   void process_compute_instns_fast(std::string compute_instns_dir,
                                    bool PRINT_LOG,
                                    std::vector<std::pair<int, int>> *x);
   void process_compute_instns_fast1(std::string compute_instns_dir,
-                                   bool PRINT_LOG,
-                                   std::vector<std::pair<int, int>> *x);
+                                    bool PRINT_LOG,
+                                    std::vector<std::pair<int, int>> *x);
+  void process_compute_instns_fast2(std::string compute_instns_dir,
+                                    bool PRINT_LOG,
+                                    std::vector<std::pair<int, int>> *x);
 
   kernel_trace_t *parse_kernel_info(const std::string &kerneltraces_filepath);
   kernel_trace_t *parse_kernel_info(int kernel_id, bool PRINT_LOG);
