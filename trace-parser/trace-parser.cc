@@ -941,10 +941,10 @@ void trace_parser::process_compute_instns_fast(
       R"(kernel_(\d+)_block_(\d+)\.sass)");
   std::smatch match;
 
-  while ((entry = readdir(dir)) != nullptr) {
+auto start1 = std::chrono::high_resolution_clock::now();
 
-    if (entry->d_type == DT_REG &&
-        1/* entry->d_name[strlen(entry->d_name) - 6] == 't' */) {
+  while ((entry = readdir(dir)) != nullptr) {
+    if (entry->d_type == DT_REG) {
 
       auto search = std::string(entry->d_name);
 
@@ -952,104 +952,83 @@ void trace_parser::process_compute_instns_fast(
         int kernel_id = std::stoi(match[1]);
         int block_id = std::stoi(match[2]);
 
-        // int gwarp_id = std::stoi(match[2]);
-
-        int num_warps_per_block =
-            get_appcfg()->get_num_warp_per_block(kernel_id - 1);
-
-        // int block_id = (int)(gwarp_id / num_warps_per_block);
-
         if (!judge_format_compute_kernel_id_fast(kernel_id, block_id, x))
           continue;
 
         std::string compute_instns_filepath =
             compute_instns_dir + "/" + entry->d_name;
 
-        std::ifstream fs(compute_instns_filepath);
-
-        if (!fs.is_open()) {
-          std::cout << "Unable to open file: " << compute_instns_filepath
-                    << std::endl;
-          exit(1);
+        const char *file_path = compute_instns_filepath.data();
+        FILE* file = fopen(file_path, "rb");
+        if (!file) {
+          printf("Cannot open file: %s\n", file_path);
+          abort();
         }
+        fseek(file, 0, SEEK_END);
+        long fsize = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        char* string = (char*)malloc(fsize + 1);
+        fread(string, 1, fsize, file);
+        string[fsize] = '\0';
+        fclose(file);
 
-        char buf[BUFSIZ * 10];
-        fs.rdbuf()->pubsetbuf(buf, sizeof(buf));
+        char* line = string;
+        char* next_line = nullptr;
+        unsigned _pc, _mask, gwarp_id;
+        char* context_end = string + fsize;
 
-        std::string line;
+        while(line < context_end) {
+          next_line = strchr(line, '\n');
+          if(next_line != nullptr) {
+            *next_line = '\0';
+          }
 
-// auto start1 = std::chrono::high_resolution_clock::now();
-// std::cout << compute_instns_dir << std::endl;
-
-        std::string content((std::istreambuf_iterator<char>(fs)), std::istreambuf_iterator<char>());
-        std::string::size_type start = 0;
-        std::string::size_type end = content.find('\n'); // 查找第一个换行符
-        // while (!fs.eof()) {
-        //   getline(fs, line);
-        
-        while (end != std::string::npos) {
-          line = content.substr(start, end - start);
-          start = end + 1; // 更新下一行的开始位置
-          end = content.find('\n', start); // 查找下一个换行符
-
-          if (line.empty())
+          if(*line == '\0') {
+            line = next_line + 1;
             continue;
-          else {
-            unsigned _pc;
+          }
 
-            std::string _mask_str;
-            unsigned _mask;
+          char mask_str[9] = {0};
 
-            unsigned gwarp_id;
+          if (sscanf(line, "%x %8s %u", &_pc, mask_str, &gwarp_id) == 3) {
+            std::string _mask_str(mask_str);
 
-            char mask_str[9];
-
-            std::istringstream iss(line);
-            // iss >> std::hex >> _pc >> mask_str;
-            iss >> std::hex >> _pc >> mask_str >> std::dec >> gwarp_id;
-
-            _mask_str = std::string(mask_str);
-
-            if (_mask_str == "!")
+            if (_mask_str == "!") {
               _mask = 0xffffffff;
-            else {
-              _mask = (unsigned)std::stoul(_mask_str, nullptr, 16);
+            } else {
+              _mask = static_cast<unsigned>(std::stoul(_mask_str, nullptr, 16));
             }
 
-            _inst_trace_t *_inst_trace =
-                (*get_instncfg()->get_instn_info_vector())[std::make_pair(
-                    kernel_id - 1, _pc)];
+            _inst_trace_t* _inst_trace =
+              (*get_instncfg()->get_instn_info_vector())[std::make_pair(kernel_id - 1, _pc)];
 
             conpute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
-                kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, NULL));
+              kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, nullptr));
+          }
+
+          if(next_line != nullptr) {
+            line = next_line + 1;
+          } else {
+            break;
           }
         }
 
-
-// auto end1 = std::chrono::high_resolution_clock::now();
-// auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>(end1 - start1).count();
-// std::cout << "opendir Time: " << duration1 << " us" << std::endl;
-
-    
-
-        fs.close();
-
+        free(string);
       } else {
         std::cerr << "Wrong name format of memory trace file: " << entry->d_name
                   << std::endl;
       }
     }
-
-
-
   }
 
+auto end1 = std::chrono::high_resolution_clock::now();
+auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>(end1 - start1).count();
+if (duration1 > 0) std::cout << "Process Compute Instns Time: " << duration1 << " us" << std::endl;
 
   closedir(dir);
 }
 
-/**********************************************************************************
-void trace_parser::process_compute_instns_fast(
+void trace_parser::process_compute_instns_fast1(
     std::string compute_instns_dir, bool PRINT_LOG,
     std::vector<std::pair<int, int>> *x) {
   DIR *dir;
@@ -1152,9 +1131,8 @@ void trace_parser::process_compute_instns_fast(
 
   closedir(dir);
 }
-**********************************************************************************/
 
-void trace_parser::process_compute_instns_fast1(
+void trace_parser::process_compute_instns_fast2(
     std::string compute_instns_dir, bool PRINT_LOG,
     std::vector<std::pair<int, int>> *x) {
   std::ifstream content_file(compute_instns_dir + std::string("/content.txt"));
