@@ -825,13 +825,16 @@ void trace_parser::process_mem_instns(const std::string mem_instns_dir,
 }
 
 void trace_parser::read_mem_instns(bool dump_log,
-                                   std::vector<std::pair<int, int>> *x) {
+                                   std::vector<std::pair<int, int>> *x,
+                                   unsigned kernel_id) {
   if (configs_filepath.back() == '/') {
     // mem_instns_dir = configs_filepath + "../memory_traces";
-    mem_instns_dir = configs_filepath + "../memory_traces" + "/kernel-" + std::to_string(1);
+    mem_instns_dir = configs_filepath + "../memory_traces" +
+      "/kernel-" + std::to_string(kernel_id);
   } else {
     // mem_instns_dir = configs_filepath + "/" + "../memory_traces";
-    mem_instns_dir = configs_filepath + "/" + "../memory_traces" + "/kernel-" + std::to_string(1);
+    mem_instns_dir = configs_filepath + "/" + "../memory_traces" +
+      "/kernel-" + std::to_string(kernel_id);
   }
 
   mem_instns.resize(appcfg.get_kernels_num());
@@ -1229,13 +1232,16 @@ void trace_parser::process_compute_instns_fast2(
 }
 
 void trace_parser::read_compute_instns(bool PRINT_LOG,
-                                       std::vector<std::pair<int, int>> *x) {
+                                       std::vector<std::pair<int, int>> *x,
+                                       unsigned kernel_id) {
   if (configs_filepath.back() == '/') {
     // compute_instns_dir = configs_filepath + "../sass_traces";
-    compute_instns_dir = configs_filepath + "../sass_traces" + "/kernel-" + std::to_string(1);
+    compute_instns_dir = configs_filepath + "../sass_traces" +
+      "/kernel-" + std::to_string(kernel_id);
   } else {
     // compute_instns_dir = configs_filepath + "/" + "../sass_traces";
-    compute_instns_dir = configs_filepath + "/" + "../sass_traces" + "/kernel-" + std::to_string(1);
+    compute_instns_dir = configs_filepath + "/" + "../sass_traces" +
+      "/kernel-" + std::to_string(kernel_id);
   }
 
   conpute_instns.resize(appcfg.get_kernels_num());
