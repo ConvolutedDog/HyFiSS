@@ -636,7 +636,7 @@ public:
     return conpute_instns[kernel_id][warp_id].size();
   }
 
-  bool get_m_valid() { return m_valid; }
+  const bool get_m_valid() const { return m_valid; }
 
   unsigned get_the_least_sm_id_of_all_blocks() {
 
@@ -652,9 +652,14 @@ public:
   }
 
 private:
+  /// The directory where the configuration files generated with the
+  /// traces is located.
   std::string configs_filepath;
+  /// File path of `app.config`.
   std::string app_config_path;
+  /// File path of `instn.config`.
   std::string instn_config_path;
+  /// File path of `issue.config`.
   std::string issue_config_path;
 
   std::string mem_instns_dir;
