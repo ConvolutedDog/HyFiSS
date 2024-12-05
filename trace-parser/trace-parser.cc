@@ -196,6 +196,9 @@ void app_config::init(std::string config_path, bool PRINT_LOG) {
       found = line.find(ss.str());
       if (found != std::string::npos) {
         kernel_sampling_point[j] = std::stoi(line.substr(found + ss.str().length()));
+      } else {
+        // Default to simulated SM-0.
+        kernel_sampling_point[j] = 0;
       }
 #endif      
     }
