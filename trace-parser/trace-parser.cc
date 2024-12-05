@@ -997,7 +997,7 @@ void trace_parser::process_single_file(FileData fileData) {
     std::vector<std::vector<std::vector<compute_instn>>>& conpute_instns;
     std::vector<std::pair<int, int>>* x;
   };
-  */ 
+  */    
   int kernel_id = fileData.kernel_id;
   int block_id = fileData.block_id;
 
@@ -1020,39 +1020,49 @@ void trace_parser::process_single_file(FileData fileData) {
   char* string = (char*)malloc(fsize + 1);
   fread(string, 1, fsize, file);
   string[fsize] = '\0';
-  fclose(file
+  fclose(file);
+
   char* line = string;
   char* next_line = nullptr;
   unsigned _pc, _mask, gwarp_id;
-  char* context_end = string + fsiz
+  char* context_end = string + fsize;
+
   while(line < context_end) {
     next_line = strchr(line, '\n');
     if(next_line != nullptr) {
       *next_line = '\0';
-  
+    }
+
     if(*line == '\0') {
       line = next_line + 1;
       continue;
-  
-    char mask_str[9] = {0
+    }
+
+    char mask_str[9] = {0};
+
     if (sscanf(line, "%x %8s %u", &_pc, mask_str, &gwarp_id) == 3) {
-      std::string _mask_str(mask_str
+      std::string _mask_str(mask_str);
+
       if (_mask_str == "!") {
         _mask = 0xffffffff;
       } else {
         _mask = static_cast<unsigned>(std::stoul(_mask_str, nullptr, 16));
-    
+      }
+
       _inst_trace_t* _inst_trace =
-        (*get_instncfg()->get_instn_info_vector())[std::make_pair(kernel_id - 1, _pc)
+        (*get_instncfg()->get_instn_info_vector())[std::make_pair(kernel_id - 1, _pc)];
+
       conpute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
         kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, nullptr));
-  
+    }
+
     if(next_line != nullptr) {
       line = next_line + 1;
     } else {
       break;
     }
-  
+  }
+
   free(string);
 }
 
