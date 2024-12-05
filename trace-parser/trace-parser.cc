@@ -214,6 +214,7 @@ void app_config::init(std::string config_path, bool PRINT_LOG) {
 
   app_kernels_id.resize(kernels_num);
 
+  // It's important to note that strtok is not thread-safe.
   toks = strtok(toks, ",");
 
   for (int i = 0; i < kernels_num; i++) {
@@ -715,6 +716,263 @@ bool judge_format_compute_block_id(int kernel_id, int block_id,
     return false;
 }
 
+static const std::regex patternMemInstns(R"(kernel_(\d+)_block_(\d+)\.mem)");
+static std::smatch matchMemInstns;
+
+static const std::regex patternComputeInstns(R"(kernel_(\d+)_block_(\d+)\.sass)");
+static std::smatch matchComputeInstns;
+
+#define workPerThread 100
+void calOptimalThreads(const std::size_t &workSize,
+                       unsigned &optimalThreads,
+                       unsigned &maxRecommendedThreads) {
+  optimalThreads = (workSize + workPerThread - 1) / workPerThread;
+  unsigned maxOptimalThreads = maxRecommendedThreads * 2;
+  if (optimalThreads > maxOptimalThreads) optimalThreads = maxOptimalThreads;
+}
+
+/// TODO: Merge `process_mem_instns_multithreaded` and `process_compute_instns_multithreaded`
+/// into a template function.
+void trace_parser::process_mem_instns_multithreaded(
+  const std::string mem_instns_dir, bool PRINT_LOG, 
+  std::vector<std::pair<int, int>> *x) {
+  mem_instns.resize(appcfg.get_kernels_num());
+  for (unsigned kid = 0; kid < appcfg.get_kernels_num(); ++kid)
+    mem_instns[kid].resize(appcfg.get_kernel_grid_size(kid));
+
+  std::vector<std::string> filepaths;
+  std::vector<unsigned> kernel_id;
+  std::vector<unsigned> block_id;
+  DIR* dir = opendir(mem_instns_dir.c_str());
+  if (dir == nullptr) {
+    std::cerr << "opendir " << mem_instns_dir << " failed." << std::endl;
+    abort();
+  }
+
+  struct dirent* entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    auto search = std::string(entry->d_name);
+    if (entry->d_type == DT_REG && judge_format_mem(entry->d_name, x) &&
+        std::regex_search(search, matchMemInstns, patternMemInstns)) {
+      filepaths.push_back(mem_instns_dir + "/" + entry->d_name);
+      kernel_id.push_back(std::stoi(matchMemInstns[1]));
+      block_id.push_back(std::stoi(matchMemInstns[2]));
+    }
+  }
+  closedir(dir);
+
+  std::vector<std::future<void>> futures;
+  std::vector<std::vector<std::vector<mem_instn>>>& mem_instns_ref = mem_instns;
+
+  unsigned maxRecommendedThreads = std::thread::hardware_concurrency();
+  if (maxRecommendedThreads == 0) maxRecommendedThreads = 1;
+  unsigned num_threads = 1;
+  calOptimalThreads(filepaths.size(), num_threads, maxRecommendedThreads);
+  std::cout << "Using " << num_threads << " threads to process memory instns." << std::endl;
+
+  unsigned files_per_thread = filepaths.size() / num_threads;
+  unsigned remainder = filepaths.size() % num_threads;
+
+  unsigned start_index = 0;
+  for (unsigned i = 0; i < num_threads; ++i) {
+    unsigned end_index = start_index + files_per_thread;
+    if (i < remainder) end_index++;
+    futures.push_back(
+      std::async(std::launch::async, [&](unsigned s, unsigned e){
+          for (unsigned j = s; j < e; ++j) {
+            FileDataMemory data = {filepaths[j], kernel_id[j], block_id[j], mem_instns_ref, x};
+            process_single_file_memory(data);
+          }
+        }, start_index, end_index
+      )
+    );
+    start_index = end_index;
+  }
+
+  // Wait for all threads to end.
+  for (auto& future : futures) {
+    future.get();
+  }
+}
+
+void trace_parser::process_single_file_memory(
+  FileDataMemory fileData){
+  /*
+  struct FileDataMemory {
+    std::string filepath;
+    unsigned kernel_id;
+    unsigned block_id;
+    std::vector<std::vector<std::vector<mem_instn>>>& conpute_instns;
+    std::vector<std::pair<int, int>>* x;
+  };
+  */
+  int kernel_id = fileData.kernel_id;
+  int block_id = fileData.block_id;
+
+  std::string mem_instns_filepath = fileData.filepath;
+  const char *file_path = mem_instns_filepath.data();
+
+  FILE* file = fopen(file_path, "r");
+  if (!file) {
+    printf("Cannot open file: %s\n", file_path);
+    abort();
+  }
+  fseek(file, 0, SEEK_END);
+  long fsize = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  char* string = (char*)malloc(fsize + 1);
+  fread(string, 1, fsize, file);
+  string[fsize] = '\0';
+  fclose(file);
+
+  char* line = string;
+  char* next_line = nullptr;
+  char* context_end = string + fsize;
+
+  int _addr_groups;
+  unsigned _pc, _time_stamp;
+  std::string _opcode;
+  // char char_opcode[128] = {0};
+  unsigned _mask;
+  unsigned long long _addr_start1, _addr_start2;
+  unsigned stride_num_pairs_1, stride_num_pairs_2;
+
+  std::string tmp_stride_num;
+  // char char_tmp_stride_num[128] = {0};
+
+  while(line < context_end) {
+    next_line = strchr(line, '\n');
+    if(next_line != nullptr) {
+      *next_line = '\0';
+    }
+
+    if(*line == '\0') {
+      line = next_line + 1;
+      continue;
+    }
+
+    std::stringstream ss;
+    ss.str(std::string(line));
+
+    ss >> std::hex >> _pc;
+    ss >> _opcode;
+    ss >> std::hex >> _mask;
+    ss >> std::hex >> _time_stamp;
+    ss >> std::hex >> _addr_groups;
+    ss >> std::hex >> _addr_start1;
+    ss >> std::hex >> stride_num_pairs_1;
+
+    std::vector<long long> _stride_num;
+
+    for (unsigned _i = 0; _i < stride_num_pairs_1; _i++) {
+      ss >> tmp_stride_num;
+      size_t pos = tmp_stride_num.find(':');
+
+      long long stride =
+          std::stoll(tmp_stride_num.substr(0, pos), nullptr, 10);
+      int num = std::stoi(tmp_stride_num.substr(pos + 1), nullptr, 10);
+
+      for (int _j = 0; _j < num; _j++) {
+        _stride_num.push_back(stride);
+      }
+    }
+
+    if (_addr_groups == 2) {
+      ss >> std::hex >> _addr_start2;
+      ss >> std::hex >> stride_num_pairs_2;
+      for (unsigned _i = 0; _i < stride_num_pairs_2; _i++) {
+        ss >> tmp_stride_num;
+        size_t pos = tmp_stride_num.find(':');
+        long long stride =
+            std::stoll(tmp_stride_num.substr(0, pos), nullptr, 10);
+        int num =
+            std::stoi(tmp_stride_num.substr(pos + 1), nullptr, 10);
+        for (int _j = 0; _j < num; _j++) {
+          _stride_num.push_back(stride);
+        }
+      }
+    }
+
+    mem_instns[kernel_id - 1][block_id].push_back(
+      mem_instn(_pc, _addr_start1, _time_stamp, _addr_groups,
+                _addr_start2, _mask, _opcode, &_stride_num));
+
+    /* // It's important to note that strtok is not thread-safe !!!
+    if(sscanf(line, "%x %s %x %x %x %llx %x",
+              &_pc, char_opcode, &_mask, &_time_stamp, &_addr_groups, 
+              &_addr_start1, &stride_num_pairs_1) == 7){
+      char *token;
+      // It's important to note that strtok is not thread-safe.
+      token = strtok(line, " ");
+      for (int i = 0; i < 7; ++i) {
+        // It's important to note that strtok is not thread-safe.
+        token = strtok(NULL, " ");
+      }
+
+      std::vector<long long> _stride_num;
+
+      _opcode = std::string(char_opcode);
+      for (unsigned _i = 0; _i < stride_num_pairs_1; _i++) {
+        if (token != NULL) {
+          strcpy(char_tmp_stride_num, token);
+          // It's important to note that strtok is not thread-safe.
+          if(_i < stride_num_pairs_1 - 1) token = strtok(NULL, " ");
+        }
+        tmp_stride_num = std::string(char_tmp_stride_num);
+        size_t pos = tmp_stride_num.find(':');
+
+        long long stride;
+        try {
+            stride = std::stoll(tmp_stride_num.substr(0, pos), nullptr, 10);
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid argument in std::stoll. tmp_stride_num: " << tmp_stride_num << "|" << std::endl;
+            stride = 0;
+            tmp_stride_num = std::to_string(0);
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Out of range in std::stoll. tmp_stride_num: " << tmp_stride_num << "|" << std::endl;
+            stride = 0;
+            tmp_stride_num = std::to_string(0);
+        }
+
+        int num = std::stoi(tmp_stride_num.substr(pos + 1), nullptr, 10);
+      
+        for (int _j = 0; _j < num; _j++) {
+          _stride_num.push_back(stride);
+        }
+      }
+
+      /// TODO: fix `line`.
+      if (_addr_groups == 2) {
+        sscanf(line, "%llx %x", &_addr_start2, &stride_num_pairs_2);
+        for (unsigned _i = 0; _i < stride_num_pairs_2; _i++) {
+          sscanf(line, "%s", char_tmp_stride_num);
+          tmp_stride_num = std::string(char_tmp_stride_num);
+          size_t pos = tmp_stride_num.find(':');
+          long long stride =
+              std::stoll(tmp_stride_num.substr(0, pos), nullptr, 10);
+          int num =
+              std::stoi(tmp_stride_num.substr(pos + 1), nullptr, 10);
+          for (int _j = 0; _j < num; _j++) {
+            _stride_num.push_back(stride);
+          }
+        }
+      }
+
+      mem_instns[kernel_id - 1][block_id].emplace_back(
+                mem_instn(_pc, _addr_start1, _time_stamp, _addr_groups,
+                          _addr_start2, _mask, _opcode, &_stride_num));
+    }
+    */
+    
+    if(next_line != nullptr) {
+      line = next_line + 1;
+    } else {
+      break;
+    }
+  }
+  free(string);
+}
+
 void trace_parser::process_mem_instns(const std::string mem_instns_dir,
                                       bool dump_log,
                                       std::vector<std::pair<int, int>> *x) {
@@ -729,9 +987,6 @@ void trace_parser::process_mem_instns(const std::string mem_instns_dir,
     std::cerr << "Not exist directory " << mem_instns_dir << ", please check."
               << std::endl;
 
-  static const std::regex pattern(R"(kernel_(\d+)_block_(\d+)\.mem)");
-  std::smatch match;
-
   while ((entry = readdir(dir)) != nullptr) {
     if (entry->d_type == DT_REG && judge_format_mem(entry->d_name, x) &&
         entry->d_name[strlen(entry->d_name) - 4] == '.' &&
@@ -741,11 +996,9 @@ void trace_parser::process_mem_instns(const std::string mem_instns_dir,
       auto search = std::string(entry->d_name);
       std::string mem_instns_filepath = mem_instns_dir + "/" + entry->d_name;
 
-      if (std::regex_search(search, match, pattern)) {
-        int kernel_id = std::stoi(match[1]);
-        int block_id = std::stoi(match[2]);
-
-        // std::cout << "kernel_id: " << kernel_id << std::endl;
+      if (std::regex_search(search, matchMemInstns, patternMemInstns)) {
+        int kernel_id = std::stoi(matchMemInstns[1]);
+        int block_id = std::stoi(matchMemInstns[2]);
 
         std::ifstream fs;
         fs.open(mem_instns_filepath);
@@ -845,7 +1098,12 @@ void trace_parser::read_mem_instns(bool dump_log,
     mem_instns[kid].resize(appcfg.get_kernel_grid_size(kid));
   }
 
-  process_mem_instns(mem_instns_dir, dump_log, x);
+auto start2 = std::chrono::high_resolution_clock::now();
+  // process_mem_instns(mem_instns_dir, dump_log, x);
+  process_mem_instns_multithreaded(mem_instns_dir, dump_log, x);
+auto end2 = std::chrono::high_resolution_clock::now();
+auto duration2 = std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count();
+if (duration2 > 0) std::cout << "        process_mem_instns_multithreaded Time: " << duration2 << " us" << std::endl;
 }
 
 void trace_parser::process_compute_instns(std::string compute_instns_dir,
@@ -932,9 +1190,6 @@ void trace_parser::process_compute_instns(std::string compute_instns_dir,
   closedir(dir);
 }
 
-static const std::regex pattern(R"(kernel_(\d+)_block_(\d+)\.sass)");
-static std::smatch match_compute_instns_fast;
-
 void trace_parser::process_compute_instns_multithreaded(
   std::string compute_instns_dir, bool PRINT_LOG, 
   std::vector<std::pair<int, int>>* x) {
@@ -950,10 +1205,11 @@ void trace_parser::process_compute_instns_multithreaded(
   struct dirent* entry;
   while ((entry = readdir(dir)) != nullptr) {
     auto search = std::string(entry->d_name);
-    if (entry->d_type == DT_REG && std::regex_search(search, match_compute_instns_fast, pattern)) {
+    if (entry->d_type == DT_REG && 
+        std::regex_search(search, matchComputeInstns, patternComputeInstns)) {
       filepaths.push_back(compute_instns_dir + "/" + entry->d_name);
-      kernel_id.push_back(std::stoi(match_compute_instns_fast[1]));
-      block_id.push_back(std::stoi(match_compute_instns_fast[2]));
+      kernel_id.push_back(std::stoi(matchComputeInstns[1]));
+      block_id.push_back(std::stoi(matchComputeInstns[2]));
     }
   }
   closedir(dir);
@@ -961,23 +1217,24 @@ void trace_parser::process_compute_instns_multithreaded(
   std::vector<std::future<void>> futures;
   std::vector<std::vector<std::vector<compute_instn>>>& conpute_instns_ref = conpute_instns;
 
-  int num_threads = std::thread::hardware_concurrency();
-  if (num_threads == 0) num_threads = 1;
-  // num_threads = 10;
-  std::cout << "Using " << num_threads << " threads." << std::endl;
+  unsigned maxRecommendedThreads = std::thread::hardware_concurrency();
+  if (maxRecommendedThreads == 0) maxRecommendedThreads = 1;
+  unsigned num_threads = 1;
+  calOptimalThreads(filepaths.size(), num_threads, maxRecommendedThreads);
+  std::cout << "Using " << num_threads << " threads to process compute instns." << std::endl;
 
-  int files_per_thread = filepaths.size() / num_threads;
-  int remainder = filepaths.size() % num_threads;
+  unsigned files_per_thread = filepaths.size() / num_threads;
+  unsigned remainder = filepaths.size() % num_threads;
 
-  int start_index = 0;
-  for (int i = 0; i < num_threads; ++i) {
-    int end_index = start_index + files_per_thread;
+  unsigned start_index = 0;
+  for (unsigned i = 0; i < num_threads; ++i) {
+    unsigned end_index = start_index + files_per_thread;
     if (i < remainder) end_index++;
     futures.push_back(
-      std::async(std::launch::async, [&](int s, int e){
-          for (int j = s; j < e; ++j) {
-            FileData data = {filepaths[j], kernel_id[j], block_id[j], conpute_instns_ref, x};
-            process_single_file(data);
+      std::async(std::launch::async, [&](unsigned s, unsigned e){
+          for (unsigned j = s; j < e; ++j) {
+            FileDataCompute data = {filepaths[j], kernel_id[j], block_id[j], conpute_instns_ref, x};
+            process_single_file_compute(data);
           }
         }, start_index, end_index
       )
@@ -991,9 +1248,10 @@ void trace_parser::process_compute_instns_multithreaded(
   }
 }
 
-void trace_parser::process_single_file(FileData fileData) {
+void trace_parser::process_single_file_compute(
+  FileDataCompute fileData) {
   /*
-  struct FileData {
+  struct FileDataCompute {
     std::string filepath;
     unsigned kernel_id;
     unsigned block_id;
@@ -1012,7 +1270,7 @@ void trace_parser::process_single_file(FileData fileData) {
   if (!judge_format_compute_kernel_id_fast(kernel_id, block_id, x))
     return;
 
-  FILE* file = fopen(file_path, "rb");
+  FILE* file = fopen(file_path, "r");
   if (!file) {
     printf("Cannot open file: %s\n", file_path);
     abort();
@@ -1087,9 +1345,9 @@ auto start1 = std::chrono::high_resolution_clock::now();
 
       auto search = std::string(entry->d_name);
 
-      if (std::regex_search(search, match_compute_instns_fast, pattern)) {
-        int kernel_id = std::stoi(match_compute_instns_fast[1]);
-        int block_id = std::stoi(match_compute_instns_fast[2]);
+      if (std::regex_search(search, matchComputeInstns, patternComputeInstns)) {
+        int kernel_id = std::stoi(matchComputeInstns[1]);
+        int block_id = std::stoi(matchComputeInstns[2]);
 
         if (!judge_format_compute_kernel_id_fast(kernel_id, block_id, x))
           continue;

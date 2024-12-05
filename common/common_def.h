@@ -10,6 +10,8 @@
 
 #define ENABLE_SAMPLING_POINT
 
+#define DUMP_TIME_SUMMARY
+
 #define WARP_SIZE 32
 #define MAX_DST 1
 #define MAX_SRC 4
