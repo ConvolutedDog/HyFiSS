@@ -20,6 +20,13 @@
 /// can be written at the same time is `512`.
 #define MAX_SIZE_OF_MME_TRACE_FP_MAP 512
 
+/// For now, we only consider the first 100 kernels.
+#define MAX_KERNEL_NUM 100
+
+/// Split a given string str into multiple substrings according to
+/// whitespace characters (such as spaces, tabs, etc.), then store
+/// these substrings in a `std::vector<std::string>` container and
+/// return it.
 std::vector<std::string> split(const std::string &str) {
   std::istringstream iss(str);
   std::vector<std::string> tokens{std::istream_iterator<std::string>{iss},
@@ -102,6 +109,7 @@ std::map<std::tuple<int, int>, std::ofstream> mem_trace_fp_map;
 /// as `kernel_x_block_size/32`.
 std::map<int, int> kernel_block_size_map;
 
+/// Read the kernel block size parameter from `app.config`.
 void setKernelBlockSizeMap(const std::string &sass_dir) {
   std::string appConfigFile = sass_dir + "/../configs/app.config";
   std::ifstream file(appConfigFile);
@@ -110,13 +118,15 @@ void setKernelBlockSizeMap(const std::string &sass_dir) {
     abort();
   }
 
+  // Read content from `app.config` line by line and store it in `lines`.
   std::vector<std::string> lines;
   std::string line;
   while (getline(file, line)) {
     lines.push_back(line);
   }
 
-  for (unsigned kernel_id = 0; kernel_id < 100; ++kernel_id) {
+  // Use regular expressions to find the block size of kernels.
+  for (unsigned kernel_id = 0; kernel_id < MAX_KERNEL_NUM; ++kernel_id) {
     std::string entry = std::string("-kernel_") + 
                         std::to_string(kernel_id + 1) + 
                         std::string("_block_size (\\d+)");
@@ -208,6 +218,9 @@ int main(int argc, char *argv[]) {
 
   std::string sass_dir = argv[2];
 
+  // Read the kernel block size parameter from `app.config`. This will store
+  // the pair of <kernel index, block size> to the container we have defined:
+  //     `std::map<int, int> kernel_block_size_map`;
   setKernelBlockSizeMap(sass_dir);
 
   DIR *dir;
@@ -217,10 +230,17 @@ int main(int argc, char *argv[]) {
 
   if ((dir = opendir(sass_dir.c_str())) != NULL) {
     while ((ent = readdir(dir)) != NULL) {
+      // Traverse the files in the path `sass_dir` and add all of the sass
+      // files to the container `sass_files`.
       if (isSassFile(ent->d_name)) {
         std::cout << "Found sass file: " << ent->d_name << std::endl;
         sass_files.push_back(getFullPath(sass_dir, std::string(ent->d_name)));
       } else {
+        // Here we delete all the files that do not conform to the naming rules
+        // of sass files, because normally, it is unlikely that there will be
+        // files that do not conform to the naming rules. Unless, we update the
+        // naming rules, then all the files that previously conformed to the
+        // rules will be deleted.
         if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0) {
           std::string filePath =
               getFullPath(sass_dir, std::string(ent->d_name));
@@ -246,10 +266,17 @@ int main(int argc, char *argv[]) {
   std::vector<std::string> memory_files;
   if ((dir = opendir(memory_dir.c_str())) != NULL) {
     while ((ent = readdir(dir)) != NULL) {
+      // Traverse the files in the path `memory_dir` and add all of the memory
+      // files to the container `memory_files`.
       if (isMemoryFile(ent->d_name)) {
         std::cout << "Found mem file: " << ent->d_name << std::endl;
         memory_files.push_back(getFullPath(memory_dir, std::string(ent->d_name)));
       } else {
+        // Here we delete all the files that do not conform to the naming rules
+        // of memory files, because normally, it is unlikely that there will be
+        // files that do not conform to the naming rules. Unless, we update the
+        // naming rules, then all the files that previously conformed to the
+        // rules will be deleted.
         if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0) {
           std::string filePath =
               getFullPath(memory_dir, std::string(ent->d_name));
@@ -271,25 +298,39 @@ int main(int argc, char *argv[]) {
   // 2024.04.07 End
 
   for (const auto &sass_file : sass_files) {
+    // Create a map to store instruction sets for each warp.
     std::map<std::pair<int, int>, std::vector<std::string>> warp_content;
     std::cout << "Processing " << sass_file << "\n";
     std::ifstream file(sass_file);
+    // Read the entire file content into a string `content`.
     std::string content((std::istreambuf_iterator<char>(file)),
                         std::istreambuf_iterator<char>());
 
+    // Split the file content into tokens.
     auto tokens = split(content);
+    // Find the position of the last underscore in the file name.
     auto underscorePos = sass_file.find_last_of('_');
+    // Extract the kernel index from the file name.
     int kernel_id = std::stoi(sass_file.substr(
         underscorePos + 1, sass_file.find(".sass") - underscorePos - 1));
-    if (kernel_id > 100) continue;
+    // Skip processing if kernel index exceeds the maximum allowed value.
+    if (kernel_id > MAX_KERNEL_NUM) continue;
 
+    // Every three tokens separated by spaces form a warp instruction: pc, mask,
+    // global warp index. Now, we process every three tokens as a warp instruction.
     for (size_t i = 0; i < tokens.size() / 3; ++i) {
+      // Convert the global warp index from hex to int. In order to compress the
+      // data in `tracing-tool`, we store the global warp index in hexadecimal
+      // format.
       int gwarp_id = std::stoi(tokens[i * 3 + 2], nullptr, 16);
 
+      // If this is the first time this kernel and warp id combination is seen,
+      // initialize its entry in the map.
       if (warp_content.find({kernel_id, gwarp_id}) == warp_content.end()) {
         warp_content[{kernel_id, gwarp_id}] = std::vector<std::string>();
       }
 
+      // Add the instruction (pc, mask, global warp id) to the map.
       warp_content[{kernel_id, gwarp_id}].push_back(tokens[i * 3] + " " + // pc
                                                     tokens[i * 3 + 1] + " " + // mask
                                                     std::to_string(gwarp_id) + "\n"); // gwarp_id
@@ -297,22 +338,32 @@ int main(int argc, char *argv[]) {
 
     file.close();
 
+    // Construct the output directory path based on the kernel index.
     std::string outputParentPath = sass_dir + "/kernel-" + std::to_string(kernel_id);
     create_directory_if_not_exists(outputParentPath);
 
+    // Write all warp instructions into the corresponding file, which is distin-
+    // guished by <kernel index, block index>.
     for (auto &item : warp_content) {
+      // Calculate the block index based on the global warp index and the size of
+      // blocks in the kernel.
       unsigned block_id = (unsigned)(
         item.first.second * 32 / kernel_block_size_map[item.first.first]);
 
+      // We store the instructions to `kernel_?_block_?.sass`.
       std::string outputPath =
         outputParentPath + "/kernel_" + std::to_string(kernel_id) + "_block_" +
         std::to_string(block_id) + ".sass";
 
+      // Pointer to the output file stream.
       std::ofstream *sass_trace_fp_ptr = nullptr;
 
       auto x = std::make_tuple(kernel_id, block_id);
+      // Check if the output file stream already exists in `sass_trace_fp_map`.
+      // Refer to the comments for `sass_trace_fp_map`.
       auto it_map = sass_trace_fp_map.find(x);
       if (it_map == sass_trace_fp_map.end()) {
+        // If not, create a new file stream and add it to the map.
         if (sass_trace_fp_map.size() >= MAX_SIZE_OF_MME_TRACE_FP_MAP) {
           auto it = sass_trace_fp_map.begin();
           it->second.close();
@@ -321,17 +372,21 @@ int main(int argc, char *argv[]) {
         std::ofstream &sass_trace_fp =
             sass_trace_fp_map.emplace(x, std::ofstream{}).first->second;
         sass_trace_fp.open(outputPath, std::ios::app);
+        // Use the newly added file stream.
         sass_trace_fp_ptr = &sass_trace_fp;
       } else {
+        // Use the existing file stream.
         sass_trace_fp_ptr = &(it_map->second);
       }
 
       auto &f_open = *sass_trace_fp_ptr;
 
+      // Write all instructions for the current warp into the file.
       for (auto &line : item.second) {
         f_open << line;
       }
     }
+    // Close and erase all file streams in the map to release resources.
     auto it_map = sass_trace_fp_map.begin();
     while (it_map != sass_trace_fp_map.end()) {
       it_map->second.close();
@@ -342,18 +397,24 @@ int main(int argc, char *argv[]) {
   // 2024.04.07 Start
 
   for (const auto &mem_file : memory_files) {
+    // Create a map to store instruction sets for each warp.
     std::map<std::pair<int, int>, std::vector<std::string>> blk_content;
     std::cout << "Processing " << mem_file << "\n";
     std::ifstream file(mem_file);
+    // Read the entire file content into a string `content`.
     std::string content((std::istreambuf_iterator<char>(file)),
                         std::istreambuf_iterator<char>());
-    
+
+    // Split the file content into tokens.
     std::istringstream iss(content);
     
+    // Find the position of the last underscore in the file name.
     auto underscorePos = mem_file.find_last_of('_');
+    // Extract the kernel ID from the file name.
     int kernel_id = std::stoi(mem_file.substr(
         underscorePos + 1, mem_file.find(".mem") - underscorePos - 1));
-    if (kernel_id > 100) continue;
+    // Skip processing if kernel ID exceeds the maximum allowed value.
+    if (kernel_id > MAX_KERNEL_NUM) continue;
 
     std::string line_str;
     int block_id;
@@ -362,13 +423,18 @@ int main(int argc, char *argv[]) {
       std::istringstream line_iss(line_str);
       std::string block_id_str;
       
+      // Extract the block index up to the first space.
       if (std::getline(line_iss, block_id_str, ' ')) {
+        // Convert block index from hex to int.
         block_id = std::stoi(block_id_str, nullptr, 16);
         std::string remaining_content((std::istreambuf_iterator<char>(line_iss)),
                                        std::istreambuf_iterator<char>());
+        // Check if this kernel_id and block_id pair is not already in the map.
         if (blk_content.find({kernel_id, block_id}) == blk_content.end()) {
+          // If not in map, initialize vector for this key.
           blk_content[{kernel_id, block_id}] = std::vector<std::string>();
         }
+        // Add the remaining content to the vector for this kernel and block index.
         blk_content[{kernel_id, block_id}].push_back(remaining_content);
       }
     }
@@ -378,7 +444,10 @@ int main(int argc, char *argv[]) {
     std::string outputParentPath = memory_dir + "/kernel-" + std::to_string(kernel_id);
     create_directory_if_not_exists(outputParentPath);
 
+    // Write all warp instructions into the corresponding file, which is distin-
+    // guished by <kernel index, block index>.
     for (auto &item : blk_content) {
+      // We store the instructions to `kernel_?_block_?.mem`.
       std::string outputPath =
           outputParentPath + "/kernel_" + std::to_string(item.first.first) +
           "_block_" + std::to_string(item.first.second) + ".mem";
@@ -386,8 +455,11 @@ int main(int argc, char *argv[]) {
       std::ofstream *mem_trace_fp_ptr = nullptr;
 
       auto x = std::make_tuple(kernel_id, item.first.second);
+      // Check if the output file stream already exists in `mem_trace_fp_map`.
+      // Refer to the comments for `mem_trace_fp_map`.
       auto it_map = mem_trace_fp_map.find(x);
       if (it_map == mem_trace_fp_map.end()) {
+        // If not, create a new file stream and add it to the map.
         if (mem_trace_fp_map.size() >= MAX_SIZE_OF_MME_TRACE_FP_MAP) {
           auto it = mem_trace_fp_map.begin();
           it->second.close();
@@ -396,6 +468,7 @@ int main(int argc, char *argv[]) {
         std::ofstream &mem_trace_fp =
             mem_trace_fp_map.emplace(x, std::ofstream{}).first->second;
         mem_trace_fp.open(outputPath, std::ios::app);
+        // Use the newly added file stream.
         mem_trace_fp_ptr = &mem_trace_fp;
       } else {
         mem_trace_fp_ptr = &(it_map->second);
@@ -403,10 +476,12 @@ int main(int argc, char *argv[]) {
 
       auto &f_open = *mem_trace_fp_ptr;
 
+      // Write all instructions for the current warp into the file.
       for (auto &line : item.second) {
         f_open << line << std::endl;
       }
     }
+    // Close and erase all file streams in the map to release resources.
     auto it_map = mem_trace_fp_map.begin();
     while (it_map != mem_trace_fp_map.end()) {
         it_map->second.close();
