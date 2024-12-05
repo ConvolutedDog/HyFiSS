@@ -458,6 +458,8 @@ int main(int argc, char **argv) {
    *    --config_file ./DEV-Def/QV100.config 
   */
 
+auto start_config_timer = std::chrono::system_clock::now();
+
 #ifdef USE_BOOST
   boost::mpi::environment env(argc, argv);
   boost::mpi::communicator world;
@@ -513,7 +515,7 @@ int main(int argc, char **argv) {
   // pled.
   const int pass_num = int((tracer.get_issuecfg()->get_trace_issued_sms_num() +
                             world.size() - 1) / world.size());
-  std::cout << "pass_num: " << pass_num << std::endl;
+  // std::cout << "pass_num: " << pass_num << std::endl;
   for (unsigned pass = 0; pass < pass_num; ++pass) {
     // The SM `serial number` that the current process need to simulate
     // during the current `pass`.
@@ -597,7 +599,7 @@ int main(int argc, char **argv) {
 
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-  if (world.rank() == 0) std::cout << "Time of Read Memory Instructions: " << duration << " ms" << std::endl;
+  // if (world.rank() == 0) std::cout << "Time of Read Memory Instructions: " << duration << " ms" << std::endl;
 
   auto issuecfg = tracer.get_issuecfg();
 
@@ -797,7 +799,7 @@ start = std::chrono::high_resolution_clock::now();
 
 end = std::chrono::high_resolution_clock::now();
 duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-std::cout << "insert SM_traces_all_passes Time: " << duration << " ms" << std::endl;
+// std::cout << "insert SM_traces_all_passes Time: " << duration << " ms" << std::endl;
 
 #ifdef USE_BOOST
 
@@ -810,23 +812,37 @@ std::cout << "insert SM_traces_all_passes Time: " << duration << " ms" << std::e
   std::vector<unsigned> MEM_ACCESS_LATENCY;
   MEM_ACCESS_LATENCY.resize(hw_cfg.get_num_sms());
 
-  auto start_memory_timer = std::chrono::system_clock::now();
+auto end_config_timer = std::chrono::system_clock::now();
+auto duration_config_timer =
+  std::chrono::duration_cast<std::chrono::microseconds>(end_config_timer -
+                                                        start_config_timer);
+auto cost_config_timer =
+  (double)(double(duration_config_timer.count()) *
+          (double)(std::chrono::microseconds::period::num) /
+          (double)(std::chrono::microseconds::period::den));
+
+
+auto start_memory_timer = std::chrono::system_clock::now();
+
   private_L1_cache_stack_distance_evaluate_boost_no_concurrent(
       argc, argv, &SM_traces_all_passes, &mem_instn_distance_overflow_flag,
       false, configs, dump_histogram, &stat_coll, &hw_cfg, KERNEL_EVALUATION,
       &MEM_ACCESS_LATENCY);
-  auto end_memory_timer = std::chrono::system_clock::now();
-  auto duration_memory_timer =
-      std::chrono::duration_cast<std::chrono::microseconds>(end_memory_timer -
-                                                            start_memory_timer);
-  auto cost_memory_timer =
-      (double)(double(duration_memory_timer.count()) *
-               (double)(std::chrono::microseconds::period::num) /
-               (double)(std::chrono::microseconds::period::den));
-  stat_coll.set_Simulation_time_memory_model(cost_memory_timer, world.rank());
+
+auto end_memory_timer = std::chrono::system_clock::now();
+auto duration_memory_timer =
+  std::chrono::duration_cast<std::chrono::microseconds>(end_memory_timer -
+                                                        start_memory_timer);
+auto cost_memory_timer =
+  (double)(double(duration_memory_timer.count()) *
+          (double)(std::chrono::microseconds::period::num) /
+          (double)(std::chrono::microseconds::period::den));
+  // stat_coll.set_Simulation_time_memory_model(cost_memory_timer, world.rank());
+  stat_coll.set_Simulation_time_memory_model(cost_memory_timer + cost_config_timer, world.rank());
 
 #endif
 
+  auto start_compute_timer = std::chrono::system_clock::now();
 
 start = std::chrono::high_resolution_clock::now();
 
@@ -834,13 +850,9 @@ start = std::chrono::high_resolution_clock::now();
       (unsigned)world.rank())
     tracer.read_compute_instns(false, &kernelBlockPairsNeedRead, KERNEL_EVALUATION + 1);
 
-
 end = std::chrono::high_resolution_clock::now();
 duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-std::cout << "read_compute_instns Time: " << duration << " ms" << std::endl;
-
-
-  auto start_compute_timer = std::chrono::system_clock::now();
+// std::cout << "read_compute_instns Time: " << duration << " ms" << std::endl;
 
   for (int _pass = 0; _pass < pass_num; _pass++) {
     int curr_process_idx_rank = world.rank() + _pass * world.size();
@@ -1058,6 +1070,8 @@ std::cout << "read_compute_instns Time: " << duration << " ms" << std::endl;
 
   stat_coll.set_Simulation_time_compute_model(cost_compute_timer, world.rank());
 
+auto start_barrier_timer = std::chrono::system_clock::now();
+
   world.barrier();
   if (world.rank() == 0)
     stat_coll.dump_output(configs, world.rank());
@@ -1066,6 +1080,25 @@ std::cout << "read_compute_instns Time: " << duration << " ms" << std::endl;
     stat_coll.dump_output(configs, world.rank());
 
   fflush(stdout);
+
+auto end_barrier_timer = std::chrono::system_clock::now();
+auto duration_barrier_timer =
+      std::chrono::duration_cast<std::chrono::microseconds>(
+          end_barrier_timer - start_barrier_timer);
+auto cost_barrier_timer =
+      (double)(double(duration_barrier_timer.count()) *
+               (double)(std::chrono::microseconds::period::num) /
+               (double)(std::chrono::microseconds::period::den));
+
+#ifdef DUMP_TIME_SUMMARY
+if (world.rank() == 0) {
+  std::cout << std::endl
+            << "*** Config time: " << cost_config_timer * 1000 << " ms." << std::endl
+            << "*** Memory time: " << cost_memory_timer * 1000 << " ms." << std::endl
+            << "*** Compute time: " << cost_compute_timer * 1000 << " ms." << std::endl
+            << "*** Barrier time: " << cost_barrier_timer * 1000 << " ms." << std::endl;
+}
+#endif
 
   return 0;
 }

@@ -546,11 +546,19 @@ struct compute_instn {
 #endif
 };
 
-struct FileData {
+struct FileDataCompute {
   std::string filepath;
   unsigned kernel_id;
   unsigned block_id;
   std::vector<std::vector<std::vector<compute_instn>>>& conpute_instns;
+  std::vector<std::pair<int, int>>* x;
+};
+
+struct FileDataMemory {
+  std::string filepath;
+  unsigned kernel_id;
+  unsigned block_id;
+  std::vector<std::vector<std::vector<mem_instn>>>& conpute_instns;
   std::vector<std::pair<int, int>>* x;
 };
 
@@ -572,12 +580,15 @@ public:
                        unsigned kernel_id);
   void process_mem_instns(std::string mem_instns_filepath, bool PRINT_LOG,
                           std::vector<std::pair<int, int>> *x);
-
+  void process_mem_instns_multithreaded(std::string mem_instns_filepath,
+                                        bool PRINT_LOG,
+                                        std::vector<std::pair<int, int>> *x);
   void read_compute_instns(bool PRINT_LOG, std::vector<std::pair<int, int>> *x,
                            unsigned kernel_id);
   void process_compute_instns(std::string compute_instns_dir, bool PRINT_LOG,
                               std::vector<std::pair<int, int>> *x);
-  void process_single_file(FileData fileData);
+  void process_single_file_compute(FileDataCompute fileData);
+  void process_single_file_memory(FileDataMemory fileData);
   void process_compute_instns_multithreaded(std::string compute_instns_dir,
                                    bool PRINT_LOG,
                                    std::vector<std::pair<int, int>> *x);
