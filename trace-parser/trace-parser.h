@@ -9,6 +9,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
+#include <future> // for std::async
 
 #include "../ISA-Def/ampere_opcode.h"
 #include "../ISA-Def/kepler_opcode.h"
@@ -544,6 +546,14 @@ struct compute_instn {
 #endif
 };
 
+struct FileData {
+  std::string filepath;
+  unsigned kernel_id;
+  unsigned block_id;
+  std::vector<std::vector<std::vector<compute_instn>>>& conpute_instns;
+  std::vector<std::pair<int, int>>* x;
+};
+
 class trace_parser {
 public:
   trace_parser(const char *input_configs_filepath);
@@ -567,6 +577,10 @@ public:
                            unsigned kernel_id);
   void process_compute_instns(std::string compute_instns_dir, bool PRINT_LOG,
                               std::vector<std::pair<int, int>> *x);
+  void process_single_file(FileData fileData);
+  void process_compute_instns_multithreaded(std::string compute_instns_dir,
+                                   bool PRINT_LOG,
+                                   std::vector<std::pair<int, int>> *x);
   void process_compute_instns_fast(std::string compute_instns_dir,
                                    bool PRINT_LOG,
                                    std::vector<std::pair<int, int>> *x);
@@ -636,7 +650,7 @@ public:
     return conpute_instns[kernel_id][warp_id].size();
   }
 
-  bool get_m_valid() { return m_valid; }
+  const bool get_m_valid() const { return m_valid; }
 
   unsigned get_the_least_sm_id_of_all_blocks() {
 
@@ -652,9 +666,14 @@ public:
   }
 
 private:
+  /// The directory where the configuration files generated with the
+  /// traces is located.
   std::string configs_filepath;
+  /// File path of `app.config`.
   std::string app_config_path;
+  /// File path of `instn.config`.
   std::string instn_config_path;
+  /// File path of `issue.config`.
   std::string issue_config_path;
 
   std::string mem_instns_dir;

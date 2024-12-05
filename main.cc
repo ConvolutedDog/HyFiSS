@@ -491,6 +491,7 @@ int main(int argc, char **argv) {
 
   int passnum_concurrent_issue_to_sm = 1;
 
+  // Read the hardware configurations.
   hw_config hw_cfg(hw_config_file);
 
   trace_parser tracer(configs.c_str(), &hw_cfg);
@@ -527,21 +528,45 @@ int main(int argc, char **argv) {
   /// TDOO: Support multiple kernels.
   stat_collector stat_coll(&hw_cfg, KERNEL_EVALUATION);
 
+  // The kernel-block pairs that need to be simulated by the current
+  // process. All of them must belong to the kernel that is currently
+  // being simulated.
   std::vector<std::pair<int, int>> kernelBlockPairsNeedRead;
 
   for (auto sm_serial_num : needReadMemInstSerialNumbers) {
     // Transform the serial number to SM index.
     unsigned smId = tracer.get_issuecfg()->serialNum2Index(sm_serial_num);
 
+    // Variable `result` stores the {kernel index, block index} pairs
+    // that the current process need to simulate. Since this pairs are
+    // parsed from the `issue.config` configuration file, there must
+    // be pairs that do not belong to the kernel that is currently
+    // being simulated, and we need to remove them from `result`. And
+    // the final outcome, i.e. the kernel-block pairs that need to be
+    // simulated by the current process, will be placed in variable
+    // `kernelBlockPairsNeedRead`.
     std::vector<std::pair<int, int>> result;
+    
+    /// TODO: I haven't figured out how to use MPI to speed up the perfor-
+    /// mance evaluation of L2 cache, I tried this in the original version
+    /// of the code, but synchronizing multiple processes would be a waste
+    /// of time.
     if (world.rank() == 0)
+      // The L2 cache is shared by all SMs, so if we use the Reuse Distance
+      // to evaluate, we need to simulate the memory access instructions on
+      // all SMs in a single process (the first process).
       result = tracer.get_issuecfg()->get_kernel_block_of_all_sms();
     else
+      // For other processes, they only need to evaluate the L1 cache. L1
+      // cache is private to each SM, so each process only needs to read
+      // the private memory instructions of the simulated SM.
       result = tracer.get_issuecfg()->get_kernel_block_by_smid(smId);
 
     for (auto pair : result) {
       bool dontNeedFlag = false;
       for (auto x : kernelBlockPairsNeedRead) {
+        // The `pair` {x.first, x.second} is the kernel index and block index
+        // that the current process need to simulate.
         if ((x.first == pair.first && x.second == pair.second)) {
           // The `pair` has been in `kernelBlockPairsNeedRead`.
           dontNeedFlag = true;
@@ -557,17 +582,22 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (world.rank() == 1) {
-    for (auto x : kernelBlockPairsNeedRead)
-      std::cout << x.second << " ";
-  }
-  std::cout << std::endl;
+  // if (world.rank() == 1) {
+  //   for (auto x : kernelBlockPairsNeedRead)
+  //     std::cout << x.second << " ";
+  // }
+  // std::cout << std::endl;
 
-auto start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::high_resolution_clock::now();
+
+  // Read the memory instructions from the disk.
+  /// TODO: Replace the current CXX style file reading method with a C-style
+  /// file reading method will speed up the reading speed.
   tracer.read_mem_instns(false, &kernelBlockPairsNeedRead, KERNEL_EVALUATION + 1);
-auto end = std::chrono::high_resolution_clock::now();
-auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-std::cout << "tracer.read_mem_instns Time: " << duration << " ms" << std::endl;
+
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+  if (world.rank() == 0) std::cout << "Time of Read Memory Instructions: " << duration << " ms" << std::endl;
 
   auto issuecfg = tracer.get_issuecfg();
 
