@@ -79,10 +79,6 @@ CXX_OBJS := $(CXX_SRCS:%.cc=$(OBJ_PATH)/%.o)
 
 OBJS := $(CXX_OBJS) $(CC_OBJS) 
 
-DEPS := $(OBJS:.o=.d)
-
--include $(DEPS)
-
 default: all
 
 all: $(TARGET)
@@ -98,9 +94,13 @@ $(OBJ_PATH)/%.o: %.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(OPTFLAGS) -c $< -o $@
 
+DEPS = $(shell find $(OBJ_PATH) -name "*.d")
+-include $(DEPS)
+
 .PHONY: clean
 
 clean:
-	rm -f $(OBJS) $(DEPS)
+	rm -f $(OBJS)
+	rm -f $(DEPS)
 	rm -f $(TARGET)
 	rm -rf $(OBJ_PATH)
