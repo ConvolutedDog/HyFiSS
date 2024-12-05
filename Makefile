@@ -28,7 +28,7 @@ else
 	CC = gcc
 endif
 
-CXXFLAGS = -Wall -finline-functions -funswitch-loops -MMD -MP
+CXXFLAGS = -Wall -pthread -finline-functions -funswitch-loops -MMD -MP
 
 ifeq ($(USE_GPROF),1)
 	CXXFLAGS += -pg
