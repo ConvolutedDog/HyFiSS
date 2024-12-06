@@ -805,7 +805,7 @@ void trace_parser::process_single_file_memory(
     std::string filepath;
     unsigned kernel_id;
     unsigned block_id;
-    std::vector<std::vector<std::vector<mem_instn>>>& conpute_instns;
+    std::vector<std::vector<std::vector<mem_instn>>>& compute_instns;
     std::vector<std::pair<int, int>>* x;
   };
   */
@@ -1179,7 +1179,7 @@ void trace_parser::process_compute_instns(std::string compute_instns_dir,
                     (*get_instncfg()->get_instn_info_vector())[std::make_pair(
                         kernel_id - 1, _pc)];
 
-                conpute_instns[kernel_id - 1][_gwarp_id].push_back(
+                compute_instns[kernel_id - 1][_gwarp_id].push_back(
                     compute_instn(kernel_id - 1, _pc, _mask, _gwarp_id,
                                   _inst_trace));
               }
@@ -1222,7 +1222,7 @@ void trace_parser::process_compute_instns_multithreaded(
   closedir(dir);
   
   std::vector<std::future<void>> futures;
-  std::vector<std::vector<std::vector<compute_instn>>>& conpute_instns_ref = conpute_instns;
+  std::vector<std::vector<std::vector<compute_instn>>>& compute_instns_ref = compute_instns;
 
   unsigned maxRecommendedThreads = std::thread::hardware_concurrency();
   if (maxRecommendedThreads == 0) maxRecommendedThreads = 1;
@@ -1243,7 +1243,7 @@ void trace_parser::process_compute_instns_multithreaded(
     futures.push_back(
       std::async(std::launch::async, [&](unsigned s, unsigned e){
           for (unsigned j = s; j < e; ++j) {
-            FileDataCompute data = {filepaths[j], kernel_id[j], block_id[j], conpute_instns_ref, x};
+            FileDataCompute data = {filepaths[j], kernel_id[j], block_id[j], compute_instns_ref, x};
             process_single_file_compute(data);
           }
         }, start_index, end_index
@@ -1265,7 +1265,7 @@ void trace_parser::process_single_file_compute(
     std::string filepath;
     unsigned kernel_id;
     unsigned block_id;
-    std::vector<std::vector<std::vector<compute_instn>>>& conpute_instns;
+    std::vector<std::vector<std::vector<compute_instn>>>& compute_instns;
     std::vector<std::pair<int, int>>* x;
   };
   */    
@@ -1323,7 +1323,7 @@ void trace_parser::process_single_file_compute(
       _inst_trace_t* _inst_trace =
         (*get_instncfg()->get_instn_info_vector())[std::make_pair(kernel_id - 1, _pc)];
 
-      conpute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
+      compute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
         kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, nullptr));
     }
 
@@ -1411,7 +1411,7 @@ auto start1 = std::chrono::high_resolution_clock::now();
             _inst_trace_t* _inst_trace =
               (*get_instncfg()->get_instn_info_vector())[std::make_pair(kernel_id - 1, _pc)];
 
-            conpute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
+            compute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
               kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, nullptr));
           }
 
@@ -1530,7 +1530,7 @@ void trace_parser::process_compute_instns_fast1(
                 (*get_instncfg()->get_instn_info_vector())[std::make_pair(
                     kernel_id - 1, _pc)];
 
-            conpute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
+            compute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
                 kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, NULL));
           }
         }
@@ -1626,7 +1626,7 @@ void trace_parser::process_compute_instns_fast2(
           _inst_trace_t *_inst_trace =
             (*get_instncfg()->get_instn_info_vector())[std::make_pair(kernel_id - 1, _pc)];
 
-          conpute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
+          compute_instns[kernel_id - 1][gwarp_id].emplace_back(compute_instn(
             kernel_id - 1, _pc, _mask, gwarp_id, _inst_trace, NULL));
         }
       }
@@ -1655,9 +1655,9 @@ void trace_parser::read_compute_instns(bool PRINT_LOG,
       "/kernel-" + std::to_string(kernel_id);
   }
 
-  conpute_instns.resize(appcfg.get_kernels_num());
+  compute_instns.resize(appcfg.get_kernels_num());
   for (unsigned kid = 0; kid < appcfg.get_kernels_num(); ++kid)
-    conpute_instns[kid].resize(appcfg.get_num_global_warps(kid));
+    compute_instns[kid].resize(appcfg.get_num_global_warps(kid));
 
 #ifdef DUMP_TIME_SUMMARY
 auto start2 = std::chrono::high_resolution_clock::now();

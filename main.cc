@@ -1093,8 +1093,7 @@ auto cost_barrier_timer =
 #ifdef DUMP_TIME_SUMMARY
 if (world.rank() == 0) {
   std::cout << std::endl
-            << "*** Config time: " << cost_config_timer * 1000 << " ms." << std::endl
-            << "*** Memory time: " << cost_memory_timer * 1000 << " ms." << std::endl
+            << "*** Memory time: " << (cost_memory_timer + cost_config_timer) * 1000 << " ms." << std::endl
             << "*** Compute time: " << cost_compute_timer * 1000 << " ms." << std::endl
             << "*** Barrier time: " << cost_barrier_timer * 1000 << " ms." << std::endl;
 }

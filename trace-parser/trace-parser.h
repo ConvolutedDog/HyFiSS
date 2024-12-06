@@ -550,7 +550,7 @@ struct FileDataCompute {
   std::string filepath;
   unsigned kernel_id;
   unsigned block_id;
-  std::vector<std::vector<std::vector<compute_instn>>>& conpute_instns;
+  std::vector<std::vector<std::vector<compute_instn>>>& compute_instns;
   std::vector<std::pair<int, int>>* x;
 };
 
@@ -558,7 +558,7 @@ struct FileDataMemory {
   std::string filepath;
   unsigned kernel_id;
   unsigned block_id;
-  std::vector<std::vector<std::vector<mem_instn>>>& conpute_instns;
+  std::vector<std::vector<std::vector<mem_instn>>>& compute_instns;
   std::vector<std::pair<int, int>>* x;
 };
 
@@ -638,12 +638,12 @@ public:
 
   compute_instn *get_one_kernel_one_warp_one_instn(int kernel_id, int warp_id,
                                                    int next_instn_id) {
-    return &conpute_instns[kernel_id][warp_id][next_instn_id];
+    return &compute_instns[kernel_id][warp_id][next_instn_id];
   }
 
   unsigned get_one_kernel_one_warp_one_instn_max_size(int kernel_id,
                                                       int warp_id) {
-    return conpute_instns[kernel_id][warp_id].size();
+    return compute_instns[kernel_id][warp_id].size();
   }
 
   mem_instn *get_one_kernel_one_block_one_uid_mem_instn(int kernel_id,
@@ -654,11 +654,11 @@ public:
   }
 
   unsigned get_one_kernel_one_warp_instn_count(int kernel_id, int warp_id) {
-    return conpute_instns[kernel_id][warp_id].size();
+    return compute_instns[kernel_id][warp_id].size();
   }
 
   unsigned get_one_kernel_one_warp_instn_size(int kernel_id, int warp_id) {
-    return conpute_instns[kernel_id][warp_id].size();
+    return compute_instns[kernel_id][warp_id].size();
   }
 
   const bool get_m_valid() const { return m_valid; }
@@ -698,7 +698,7 @@ private:
   /// Kernel Index -> Block Index -> Mem Instn Indx.
   std::vector<std::vector<std::vector<mem_instn>>> mem_instns;
 
-  std::vector<std::vector<std::vector<compute_instn>>> conpute_instns;
+  std::vector<std::vector<std::vector<compute_instn>>> compute_instns;
 
   std::vector<std::vector<int>> concurrent_kernels;
 
