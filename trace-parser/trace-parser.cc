@@ -768,7 +768,10 @@ void trace_parser::process_mem_instns_multithreaded(
   if (maxRecommendedThreads == 0) maxRecommendedThreads = 1;
   unsigned num_threads = 1;
   calOptimalThreads(filepaths.size(), num_threads, maxRecommendedThreads);
+
+#ifdef DUMP_THREAD_NUM
   std::cout << "Using " << num_threads << " threads to process memory instns." << std::endl;
+#endif
 
   unsigned files_per_thread = filepaths.size() / num_threads;
   unsigned remainder = filepaths.size() % num_threads;
@@ -1098,12 +1101,16 @@ void trace_parser::read_mem_instns(bool dump_log,
     mem_instns[kid].resize(appcfg.get_kernel_grid_size(kid));
   }
 
+#ifdef DUMP_TIME_SUMMARY
 auto start2 = std::chrono::high_resolution_clock::now();
+#endif
   // process_mem_instns(mem_instns_dir, dump_log, x);
   process_mem_instns_multithreaded(mem_instns_dir, dump_log, x);
+#ifdef DUMP_TIME_SUMMARY
 auto end2 = std::chrono::high_resolution_clock::now();
 auto duration2 = std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count();
 if (duration2 > 0) std::cout << "        process_mem_instns_multithreaded Time: " << duration2 << " us" << std::endl;
+#endif
 }
 
 void trace_parser::process_compute_instns(std::string compute_instns_dir,
@@ -1221,7 +1228,10 @@ void trace_parser::process_compute_instns_multithreaded(
   if (maxRecommendedThreads == 0) maxRecommendedThreads = 1;
   unsigned num_threads = 1;
   calOptimalThreads(filepaths.size(), num_threads, maxRecommendedThreads);
+
+#ifdef DUMP_THREAD_NUM
   std::cout << "Using " << num_threads << " threads to process compute instns." << std::endl;
+#endif
 
   unsigned files_per_thread = filepaths.size() / num_threads;
   unsigned remainder = filepaths.size() % num_threads;
@@ -1649,12 +1659,16 @@ void trace_parser::read_compute_instns(bool PRINT_LOG,
   for (unsigned kid = 0; kid < appcfg.get_kernels_num(); ++kid)
     conpute_instns[kid].resize(appcfg.get_num_global_warps(kid));
 
+#ifdef DUMP_TIME_SUMMARY
 auto start2 = std::chrono::high_resolution_clock::now();
+#endif
   // process_compute_instns_fast(compute_instns_dir, PRINT_LOG, x);
   process_compute_instns_multithreaded(compute_instns_dir, PRINT_LOG, x);
+#ifdef DUMP_TIME_SUMMARY
 auto end2 = std::chrono::high_resolution_clock::now();
 auto duration2 = std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count();
 if (duration2 > 0) std::cout << "        process_compute_instns_multithreaded Time: " << duration2 << " us" << std::endl;
+#endif
 }
 
 void split(const std::string &str, std::vector<std::string> &cont,
