@@ -1047,7 +1047,7 @@ class PrivateSM {
 public:
   PrivateSM(const unsigned smid, trace_parser *tracer, hw_config *hw_cfg);
   ~PrivateSM();
-  void run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
+  void run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_LATENCY,
            stat_collector *stat_coll);
 
   bool get_active() { return active; }

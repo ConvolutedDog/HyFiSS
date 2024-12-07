@@ -2845,7 +2845,7 @@ else:
     No_Stall_ratio = float(No_Stall_summary) / float(total_num_stalls)
     Other_Stall_ratio = float(Other_Stall_summary) / float(total_num_stalls)
 # ========================================================
-### MAY ERROR
+#TODO: MAY ERROR
 Warp_instructions_executed_summary = 0
 
 for i in range(SMs_num):

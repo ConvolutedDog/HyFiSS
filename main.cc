@@ -851,8 +851,8 @@ start = std::chrono::high_resolution_clock::now();
     tracer.read_compute_instns(false, &kernelBlockPairsNeedRead, KERNEL_EVALUATION + 1);
 
 end = std::chrono::high_resolution_clock::now();
-duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-// std::cout << "read_compute_instns Time: " << duration << " ms" << std::endl;
+duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+std::cout << "read_compute_instns Time: " << duration << " us" << std::endl;
 
   for (int _pass = 0; _pass < pass_num; _pass++) {
     int curr_process_idx_rank = world.rank() + _pass * world.size();
@@ -890,9 +890,19 @@ duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).co
       }
       std::cout << " ...run START... " << std::endl;
 
+#ifdef DUMP_TIME_SUMMARY
+auto start_run = std::chrono::high_resolution_clock::now();
+#endif
+
       while (private_sm.get_active()) {
         private_sm.run(KERNEL_EVALUATION, MEM_ACCESS_LATENCY[smid], &stat_coll);
       }
+
+#ifdef DUMP_TIME_SUMMARY
+auto end_run = std::chrono::high_resolution_clock::now();
+auto duration_run = std::chrono::duration_cast<std::chrono::microseconds>(end_run - start_run).count();
+if (duration_run > 0) std::cout << "        private_sm.run Time: " << duration_run << " us" << std::endl;
+#endif
 
       std::vector<std::pair<int, int>> *kernel_block_pair =
           private_sm.get_kernel_block_pair();

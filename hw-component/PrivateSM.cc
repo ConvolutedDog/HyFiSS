@@ -1066,16 +1066,7 @@ void PrivateSM::issue_warp(register_set &pipe_reg_set, ibuffer_entry entry,
   tmp = nullptr;
 }
 
-void insert_into_active_warps_id(std::vector<unsigned> *active_warps_id,
-                                 unsigned wid) {
-
-  if (std::find(active_warps_id->begin(), active_warps_id->end(), wid) ==
-      active_warps_id->end()) {
-    active_warps_id->push_back(wid);
-  }
-}
-
-void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
+void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_LATENCY,
                     stat_collector *stat_coll) {
 
   m_cycle++;
@@ -1090,8 +1081,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
   }
 
   bool active_during_this_cycle = false;
-
-  std::vector<unsigned> active_warps_id;
 
   bool flag_Issue_Compute_Structural_out_has_no_free_slot = false;
   bool flag_Issue_Memory_Structural_out_has_no_free_slot = false;
@@ -1205,8 +1194,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
           m_reg_bank_allocator->setBankState(bank_id, ON_WRITING);
 
           _trace_warp_inst.set_arch_reg_dst(i, -1);
-
-          insert_into_active_warps_id(&active_warps_id, _wid);
         } else {
 
           flag_Writeback_Compute_Structural_bank_of_reg_is_not_idle = true;
@@ -1253,13 +1240,10 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
 
         m_warp_active_status[_index][_wid - _gwarp_id_start] = false;
         m_active_warps--;
-        insert_into_active_warps_id(&active_warps_id, _wid);
       }
 
     } else {
       except_regs.push_back(*pipe_reg);
-
-      insert_into_active_warps_id(&active_warps_id, _wid);
     }
 
     unsigned _kid_block_id_count = 0;
@@ -1300,10 +1284,7 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                                                     : pred + PRED_NUM_OFFSET);
 
       for (auto regnum : need_write_back_regs_num) {
-
         m_scoreboard->releaseRegister(global_all_kernels_warp_id, regnum);
-        insert_into_active_warps_id(&active_warps_id,
-                                    global_all_kernels_warp_id);
       }
     }
 
@@ -1325,7 +1306,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
           &flag_Writeback_Memory_Structural_bank_of_reg_is_not_idle,
           &clk_record, m_cycle);
       for (auto wid : returned_wids) {
-        insert_into_active_warps_id(&active_warps_id, wid);
         active_during_this_cycle = true;
       }
     }
@@ -1374,7 +1354,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                 schedule_wb_now = !m_fu[offset_fu + _]->stallable();
                 resbus = test_result_bus(tmp_inst_trace->get_latency());
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
                   m_result_bus[resbus]->set(tmp_inst_trace->get_latency());
@@ -1413,7 +1392,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                 schedule_wb_now = !m_fu[offset_fu + _]->stallable();
                 resbus = test_result_bus(tmp_inst_trace->get_latency());
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
                   m_result_bus[resbus]->set(tmp_inst_trace->get_latency());
@@ -1450,7 +1428,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                 schedule_wb_now = !m_fu[offset_fu + _]->stallable();
                 resbus = test_result_bus(tmp_inst_trace->get_latency());
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
                   m_result_bus[resbus]->set(tmp_inst_trace->get_latency());
@@ -1490,7 +1467,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                 schedule_wb_now = !m_fu[offset_fu + _]->stallable();
                 resbus = test_result_bus(tmp_inst_trace->get_latency());
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
                   m_result_bus[resbus]->set(tmp_inst_trace->get_latency());
@@ -1528,7 +1504,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                 schedule_wb_now = !m_fu[offset_fu + _]->stallable();
                 resbus = test_result_bus(tmp_inst_trace->get_latency());
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
                   m_result_bus[resbus]->set(tmp_inst_trace->get_latency());
@@ -1594,7 +1569,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
 
                 resbus = test_result_bus(MEM_ACCESS_LATENCY);
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
 
@@ -1638,7 +1612,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                 schedule_wb_now = !m_fu[offset_fu + _]->stallable();
                 resbus = test_result_bus(tmp_inst_trace->get_latency());
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
                   m_result_bus[resbus]->set(tmp_inst_trace->get_latency());
@@ -1679,7 +1652,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                 schedule_wb_now = !m_fu[offset_fu + _]->stallable();
                 resbus = test_result_bus(tmp_inst_trace->get_latency());
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
                   m_result_bus[resbus]->set(tmp_inst_trace->get_latency());
@@ -1720,7 +1692,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
                 schedule_wb_now = !m_fu[offset_fu + _]->stallable();
                 resbus = test_result_bus(tmp_inst_trace->get_latency());
 
-                insert_into_active_warps_id(&active_warps_id, _wid);
                 active_during_this_cycle = true;
                 if (schedule_wb_now && (resbus != -1)) {
                   m_result_bus[resbus]->set(tmp_inst_trace->get_latency());
@@ -2289,8 +2260,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
 
           if (warp_inst_issued) {
             active_during_this_cycle = true;
-            insert_into_active_warps_id(&active_warps_id,
-                                        global_all_kernels_warp_id);
             m_ibuffer->pop_front(global_all_kernels_warp_id);
 
             regnums.push_back((pred < 0) ? pred : pred + PRED_NUM_OFFSET);
@@ -2370,8 +2339,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
         m_ibuffer->push_back(global_all_kernels_warp_id, _entry);
         m_inst_fetch_buffer->m_valid = false;
         active_during_this_cycle = true;
-        insert_into_active_warps_id(&active_warps_id,
-                                    global_all_kernels_warp_id);
         if (CALIBRATION_LOG_ENABLED) {
           std::cout << "    DECODE: (" << _entry.kid << ", " << _entry.wid
                     << ", " << _entry.uid << ", " << _entry.pc << ")"
@@ -2500,7 +2467,6 @@ void PrivateSM::run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
             m_inst_fetch_buffer->m_valid = true;
 
             active_during_this_cycle = true;
-            insert_into_active_warps_id(&active_warps_id, wid);
 
             if (CALIBRATION_LOG_ENABLED) {
               std::cout << "    FETCH: (" << _kid << ", " << wid << ", "
