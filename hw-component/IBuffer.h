@@ -50,7 +50,7 @@ public:
 
   /// TODO: Merging `pop_front` and `front` to reduce the overhead of
   /// duplicate moves.
-  inline ibuffer_entry& front(const unsigned allKernelsWarpID) const {
+  inline const ibuffer_entry& front(const unsigned allKernelsWarpID) const {
     return m_ibuffer[allKernelsWarpID].front();
   }
 
