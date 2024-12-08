@@ -1343,6 +1343,15 @@ private:
       clk_record;
 
   std::map<unsigned, std::vector<bool>> block_is_in_bar; // 0704 
+
+  /// Where the cumulative sum of the `m_num_warps_per_sm` vectors
+  /// is computed and stored in, starting with the second element.
+  /// It means that,
+  ///   m_cumulative_warps_per_sm[0] = 0;
+  ///   m_cumulative_warps_per_sm[1] = m_num_warps_per_sm[0];
+  ///   m_cumulative_warps_per_sm[2] = m_num_warps_per_sm[0] +
+  ///                                  m_num_warps_per_sm[1];
+  std::vector<unsigned> m_cumulative_warps_per_sm;
 };
 
 #endif

@@ -971,6 +971,12 @@ PrivateSM::PrivateSM(const unsigned smid, trace_parser *tracer,
   for (unsigned _ = 0; _ < num_result_bus; _++) {
     m_result_bus.push_back(new std::bitset<MAX_ALU_LATENCY>());
   }
+
+  m_cumulative_warps_per_sm.resize(m_num_warps_per_sm.size() + 1, 0);
+  std::partial_sum(
+    m_num_warps_per_sm.begin(), m_num_warps_per_sm.end(),
+    m_cumulative_warps_per_sm.begin() + 1
+  );
 }
 
 int PrivateSM::register_bank(int regnum, int wid, unsigned sched_id) {
@@ -1179,7 +1185,6 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
     const bool all_write_back = trace_warp_inst.allArchRegDstWriteBack();
 
     if (all_write_back) {
-
       if (CALIBRATION_LOG_ENABLED) {
         std::cout << "    Write back: (" << _kid << ", " << _wid << ", " << _uid
                   << ", " << _pc << ")" << std::endl;
@@ -1192,46 +1197,33 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
       if (trace_warp_inst.get_opcode() == OP_EXIT &&
           tracer->get_one_kernel_one_warp_instn_count(_kid, _wid) == _uid + 1) {
-
-        unsigned _index = 0;
-        for (auto _it_kernel_block_pair = kernel_block_pair.begin();
-             _it_kernel_block_pair != kernel_block_pair.end();
-             _it_kernel_block_pair++) {
-          if ((unsigned)(_it_kernel_block_pair->first) - 1 != KERNEL_EVALUATION)
-            continue;
-          if ((unsigned)(_it_kernel_block_pair->first) - 1 == _kid &&
-              (unsigned)(_it_kernel_block_pair->second) == _block_id) {
-            _index =
-                std::distance(kernel_block_pair.begin(), _it_kernel_block_pair);
-            break;
+        auto it = std::find_if(
+          kernel_block_pair.begin(), kernel_block_pair.end(),
+          [&](const auto& pair) {
+            return pair.first - 1 == _kid && pair.second == _block_id;
           }
+        );
+
+        if (it != kernel_block_pair.end()) {
+          std::ptrdiff_t index = std::distance(kernel_block_pair.begin(), it);
+          m_warp_active_status[index][_wid - _gwarp_id_start] = false;
         }
-
-        m_warp_active_status[_index][_wid - _gwarp_id_start] = false;
       }
-
     } else {
       except_regs.push_back(*pipe_reg);
     }
 
-    unsigned _kid_block_id_count = 0;
-    for (auto _it_kernel_block_pair = kernel_block_pair.begin();
-         _it_kernel_block_pair != kernel_block_pair.end();
-         _it_kernel_block_pair++) {
-      if ((unsigned)(_it_kernel_block_pair->first) - 1 != KERNEL_EVALUATION)
-        continue;
-      if ((unsigned)(_it_kernel_block_pair->first) - 1 == _kid) {
-        if ((unsigned)(_it_kernel_block_pair->second) < _block_id) {
-          _kid_block_id_count++;
-        }
+    unsigned index_specified_block = std::count_if(
+      kernel_block_pair.begin(), kernel_block_pair.end(),
+      [&](const auto& pair) {
+        return pair.first - 1 == _kid && pair.second < _block_id;
       }
-    }
+    );
 
     auto global_all_kernels_warp_id =
         (unsigned)(_wid % _warps_per_block) +
-        _kid_block_id_count * _warps_per_block +
-        std::accumulate(m_num_warps_per_sm.begin(),
-                        m_num_warps_per_sm.begin() + _kid, 0);
+        index_specified_block * _warps_per_block +
+        m_cumulative_warps_per_sm[_kid+1];
 
     if (all_write_back) {
 
@@ -1757,24 +1749,17 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
           continue;
         }
 
-        unsigned _kid_block_id_count = 0;
-        for (auto _it_kernel_block_pair = kernel_block_pair.begin();
-             _it_kernel_block_pair != kernel_block_pair.end();
-             _it_kernel_block_pair++) {
-          if ((unsigned)(_it_kernel_block_pair->first) - 1 != KERNEL_EVALUATION)
-            continue;
-          if ((unsigned)(_it_kernel_block_pair->first) - 1 == _kid) {
-            if ((unsigned)(_it_kernel_block_pair->second) < _block_id) {
-              _kid_block_id_count++;
-            }
+        unsigned index_specified_block = std::count_if(
+          kernel_block_pair.begin(), kernel_block_pair.end(),
+          [&](const auto& pair) {
+            return pair.first - 1 == _kid && pair.second < _block_id;
           }
-        }
+        );
 
         auto global_all_kernels_warp_id =
-            (unsigned)(wid % _warps_per_block) +
-            _kid_block_id_count * _warps_per_block +
-            std::accumulate(m_num_warps_per_sm.begin(),
-                            m_num_warps_per_sm.begin() + _kid, 0);
+          (unsigned)(wid % _warps_per_block) +
+          index_specified_block * _warps_per_block +
+          m_cumulative_warps_per_sm[_kid+1];
 
         unsigned issued_num = 0;
         unsigned checked_num = 0;
@@ -2283,24 +2268,17 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
       unsigned _block_id = (unsigned)(_wid / _warps_per_block);
 
-      unsigned _kid_block_id_count = 0;
-      for (auto _it_kernel_block_pair = kernel_block_pair.begin();
-           _it_kernel_block_pair != kernel_block_pair.end();
-           _it_kernel_block_pair++) {
-        if ((unsigned)(_it_kernel_block_pair->first) - 1 != KERNEL_EVALUATION)
-          continue;
-        if ((unsigned)(_it_kernel_block_pair->first) - 1 == _kid) {
-          if ((unsigned)(_it_kernel_block_pair->second) < _block_id) {
-            _kid_block_id_count++;
-          }
+      unsigned index_specified_block = std::count_if(
+        kernel_block_pair.begin(), kernel_block_pair.end(),
+        [&](const auto& pair) {
+          return pair.first - 1 == _kid && pair.second < _block_id;
         }
-      }
+      );
 
       auto global_all_kernels_warp_id =
-          (unsigned)(_wid % _warps_per_block) +
-          _kid_block_id_count * _warps_per_block +
-          std::accumulate(m_num_warps_per_sm.begin(),
-                          m_num_warps_per_sm.begin() + _kid, 0);
+        (unsigned)(_wid % _warps_per_block) +
+        index_specified_block * _warps_per_block +
+        m_cumulative_warps_per_sm[_kid+1];
 
       if (m_ibuffer->has_free_slot(global_all_kernels_warp_id)) {
         auto _entry = ibuffer_entry(_pc, _wid, _kid, _uid);
@@ -2330,22 +2308,6 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
     if (m_inst_fetch_buffer->m_valid) {
       continue;
-    }
-
-    unsigned all_blocks_in_this_sm = 0;
-    int first_block_in_this_sm = -1;
-    for (auto it_kernel_block_pair_ = kernel_block_pair.begin();
-         it_kernel_block_pair_ != kernel_block_pair.end();
-         it_kernel_block_pair_++) {
-
-      if (((unsigned)(it_kernel_block_pair_->first) - 1) == KERNEL_EVALUATION) {
-        all_blocks_in_this_sm += 1;
-
-        if (first_block_in_this_sm == -1) {
-          first_block_in_this_sm =
-              std::distance(kernel_block_pair.begin(), it_kernel_block_pair_);
-        }
-      }
     }
 
     if (true) {
