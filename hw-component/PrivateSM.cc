@@ -1145,14 +1145,12 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
     unsigned _block_id = (unsigned)(_wid / _warps_per_block);
 
-    unsigned _gwarp_id_start = _warps_per_block * _block_id;
-
     auto compute_instn =
         tracer->get_one_kernel_one_warp_one_instn(_kid, _wid, _uid);
     auto trace_warp_inst = compute_instn->trace_warp_inst;
     unsigned dst_reg_num = trace_warp_inst.get_outcount();
 
-    for (unsigned i = 0; i < dst_reg_num; i++) {
+    for (unsigned i = 0; i < dst_reg_num; ++i) {
       int dst_reg_id = trace_warp_inst.get_arch_reg_dst(i);
 
       if (dst_reg_id >= 0) {
@@ -1173,13 +1171,6 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
       }
     }
 
-    // bool all_write_back = true;
-    // for (unsigned i = 0; i < dst_reg_num; ++i) {
-    //   if (trace_warp_inst.get_arch_reg_dst(i) != -1) {
-    //     all_write_back = false;
-    //     break;
-    //   }
-    // }
     const bool all_write_back = trace_warp_inst.allArchRegDstWriteBack();
 
     if (all_write_back) {
@@ -1195,6 +1186,9 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
       if (trace_warp_inst.get_opcode() == OP_EXIT &&
           tracer->get_one_kernel_one_warp_instn_count(_kid, _wid) == _uid + 1) {
+        
+        unsigned _gwarp_id_start = _warps_per_block * _block_id;
+
         auto it = std::find_if(
           kernel_block_pair.begin(), kernel_block_pair.end(),
           [&](const auto& pair) {
@@ -1212,22 +1206,23 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
     }
 
     if (all_write_back) {
-      std::vector<int> need_write_back_regs_num;
       _inst_trace_t *tmp_inst_trace = compute_instn->inst_trace;
-      for (unsigned i = 0; i < tmp_inst_trace->reg_srcs_num; i++) {
-        need_write_back_regs_num.push_back(tmp_inst_trace->reg_src[i]);
+
+      size_t need_write_back_size = tmp_inst_trace->reg_srcs_num + 
+                                    tmp_inst_trace->reg_dsts_num + 1;
+      std::vector<int> need_write_back_regs_num(need_write_back_size);
+
+      size_t index = 0;
+      for (unsigned i = 0; i < tmp_inst_trace->reg_srcs_num; ++i, ++index) {
+        need_write_back_regs_num[index] = tmp_inst_trace->reg_src[i];
       }
-      for (unsigned i = 0; i < tmp_inst_trace->reg_dsts_num; i++) {
-        if (tmp_inst_trace->reg_dest_is_pred[i]) {
-          need_write_back_regs_num.push_back(tmp_inst_trace->reg_dest[i] +
-                                             PRED_NUM_OFFSET);
-        } else {
-          need_write_back_regs_num.push_back(tmp_inst_trace->reg_dest[i]);
-        }
+      for (unsigned i = 0; i < tmp_inst_trace->reg_dsts_num; ++i, ++index) {
+        need_write_back_regs_num[index] = tmp_inst_trace->reg_dest_is_pred[i] ?
+                                          tmp_inst_trace->reg_dest[i] + PRED_NUM_OFFSET :
+                                          tmp_inst_trace->reg_dest[i];
       }
       auto pred = trace_warp_inst.get_pred();
-      need_write_back_regs_num.push_back((pred < 0) ? pred
-                                                    : pred + PRED_NUM_OFFSET);
+      need_write_back_regs_num[index] = (pred < 0) ? pred : pred + PRED_NUM_OFFSET;
 
       /// TODO: Set the result of `count_if` to be precomputed.
       unsigned index_specified_block = std::count_if(
@@ -1252,12 +1247,12 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
     active_during_this_cycle = true;
   }
 
-  for (unsigned i = 0; i < num_result_bus; i++) {
+  for (unsigned i = 0; i < num_result_bus; ++i) {
     *(m_result_bus[i]) >>= 1;
   }
 
-  for (unsigned n = 0; n < m_fu.size(); n++) {
-    for (unsigned _ = 0; _ < m_fu[n]->clock_multiplier(); _++) {
+  for (unsigned n = 0; n < m_fu.size(); ++n) {
+    for (unsigned clk = 0; clk < m_fu[n]->clock_multiplier(); ++clk) {
       std::vector<unsigned> returned_wids = m_fu[n]->cycle(
           tracer, m_scoreboard, appcfg, &kernel_block_pair, &m_num_warps_per_sm,
           KERNEL_EVALUATION, num_scheds, m_reg_bank_allocator,
