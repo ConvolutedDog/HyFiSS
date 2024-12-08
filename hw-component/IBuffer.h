@@ -50,9 +50,12 @@ public:
 
   /// TODO: Merging `pop_front` and `front` to reduce the overhead of
   /// duplicate moves.
-  inline ibuffer_entry& front(const unsigned allKernelsWarpID) {
+  inline ibuffer_entry& front(const unsigned allKernelsWarpID) const {
     return m_ibuffer[allKernelsWarpID].front();
   }
+
+  /// Return the size of `m_ibuffer`.
+  inline std::size_t size() const { return m_ibuffer.size(); }
 
   void print_ibuffer() const;
   void print_ibuffer(const unsigned gwarp_id) const;

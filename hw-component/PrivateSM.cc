@@ -1152,8 +1152,6 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
     auto trace_warp_inst = compute_instn->trace_warp_inst;
     unsigned dst_reg_num = trace_warp_inst.get_outcount();
 
-    std::vector<int> need_write_back_regs_num;
-
     for (unsigned i = 0; i < dst_reg_num; i++) {
       int dst_reg_id = trace_warp_inst.get_arch_reg_dst(i);
 
@@ -1213,20 +1211,8 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
       except_regs.push_back(*pipe_reg);
     }
 
-    unsigned index_specified_block = std::count_if(
-      kernel_block_pair.begin(), kernel_block_pair.end(),
-      [&](const auto& pair) {
-        return pair.first - 1 == _kid && pair.second < _block_id;
-      }
-    );
-
-    auto global_all_kernels_warp_id =
-        (unsigned)(_wid % _warps_per_block) +
-        index_specified_block * _warps_per_block +
-        m_cumulative_warps_per_sm[_kid+1];
-
     if (all_write_back) {
-
+      std::vector<int> need_write_back_regs_num;
       _inst_trace_t *tmp_inst_trace = compute_instn->inst_trace;
       for (unsigned i = 0; i < tmp_inst_trace->reg_srcs_num; i++) {
         need_write_back_regs_num.push_back(tmp_inst_trace->reg_src[i]);
@@ -1243,7 +1229,20 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
       need_write_back_regs_num.push_back((pred < 0) ? pred
                                                     : pred + PRED_NUM_OFFSET);
 
-      for (auto regnum : need_write_back_regs_num) {
+      /// TODO: Set the result of `count_if` to be precomputed.
+      unsigned index_specified_block = std::count_if(
+        kernel_block_pair.begin(), kernel_block_pair.end(),
+        [&](const auto& pair) {
+          return pair.first - 1 == _kid && pair.second < _block_id;
+        }
+      );
+
+      auto global_all_kernels_warp_id =
+          (unsigned)(_wid % _warps_per_block) +
+          index_specified_block * _warps_per_block +
+          m_cumulative_warps_per_sm[_kid];
+
+      for (auto &regnum : need_write_back_regs_num) {
         m_scoreboard->releaseRegister(global_all_kernels_warp_id, regnum);
       }
     }
@@ -1259,7 +1258,6 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
   for (unsigned n = 0; n < m_fu.size(); n++) {
     for (unsigned _ = 0; _ < m_fu[n]->clock_multiplier(); _++) {
-
       std::vector<unsigned> returned_wids = m_fu[n]->cycle(
           tracer, m_scoreboard, appcfg, &kernel_block_pair, &m_num_warps_per_sm,
           KERNEL_EVALUATION, num_scheds, m_reg_bank_allocator,
@@ -1759,7 +1757,7 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
         auto global_all_kernels_warp_id =
           (unsigned)(wid % _warps_per_block) +
           index_specified_block * _warps_per_block +
-          m_cumulative_warps_per_sm[_kid+1];
+          m_cumulative_warps_per_sm[_kid];
 
         unsigned issued_num = 0;
         unsigned checked_num = 0;
@@ -2278,7 +2276,7 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
       auto global_all_kernels_warp_id =
         (unsigned)(_wid % _warps_per_block) +
         index_specified_block * _warps_per_block +
-        m_cumulative_warps_per_sm[_kid+1];
+        m_cumulative_warps_per_sm[_kid];
 
       if (m_ibuffer->has_free_slot(global_all_kernels_warp_id)) {
         auto _entry = ibuffer_entry(_pc, _wid, _kid, _uid);
