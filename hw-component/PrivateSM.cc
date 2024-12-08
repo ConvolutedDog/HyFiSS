@@ -725,8 +725,6 @@ PrivateSM::PrivateSM(const unsigned smid, trace_parser *tracer,
   m_smid = smid;
   m_cycle = 0;
   active = true;
-  m_active_warps = 0;
-  max_warps_init = 0;
 
   num_warp_instns_executed = 0;
 
@@ -740,16 +738,22 @@ PrivateSM::PrivateSM(const unsigned smid, trace_parser *tracer,
   appcfg = this->tracer->get_appcfg();
   instncfg = this->tracer->get_instncfg();
 
+  // `kernel_block_pair` is type of `std::vector<std::pair<int, int>>`.
   kernel_block_pair = issuecfg->get_kernel_block_by_smid(m_smid);
 
   m_num_warps_per_sm.resize(appcfg->get_kernels_num(), 0);
 
+  // `m_warp_active_status` is the active flag that marks all the warps
+  // to be simulated, the first dimension is the kernel index, and the
+  // second dimension is the warp index. It should be noted that the
+  // index of the kernel here refers to the index of the kernel in the
+  // `kernel_block_pair`.
   m_warp_active_status.reserve(kernel_block_pair.size());
-  for (auto it = kernel_block_pair.begin(); it != kernel_block_pair.end();
-       it++) {
+  for (auto it = kernel_block_pair.begin(); 
+       it != kernel_block_pair.end(); ++it) {
     unsigned kid = it->first - 1;
-    unsigned _warps_per_block = appcfg->get_num_warp_per_block(kid);
-    m_warp_active_status.push_back(std::vector<bool>(_warps_per_block, false));
+    unsigned warps_per_block = appcfg->get_num_warp_per_block(kid);
+    m_warp_active_status.push_back(std::vector<bool>(warps_per_block, false));
   }
   m_thread_block_has_executed_status.reserve(kernel_block_pair.size());
   for (auto it = kernel_block_pair.begin(); it != kernel_block_pair.end();
@@ -1115,46 +1119,10 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
   bool flag_Execute_Memory_Data_Main_Memory = false;
 
   if (m_cycle == 1) {
-    for (auto it_kernel_block_pair_1 = kernel_block_pair.begin();
-         it_kernel_block_pair_1 != kernel_block_pair.end();
-         it_kernel_block_pair_1++) {
-      if ((unsigned)(it_kernel_block_pair_1->first) - 1 != KERNEL_EVALUATION) {
-        unsigned _index_ =
-            std::distance(kernel_block_pair.begin(), it_kernel_block_pair_1);
-        m_thread_block_has_executed_status[_index_] = true;
-      }
-    }
+    this->setKernelsNotNeedToBeSimulated(KERNEL_EVALUATION);
   }
 
-  for (auto it_kernel_block_pair_2 = kernel_block_pair.begin();
-       it_kernel_block_pair_2 != kernel_block_pair.end();
-       it_kernel_block_pair_2++) {
-    if ((unsigned)(it_kernel_block_pair_2->first) - 1 != KERNEL_EVALUATION)
-      continue;
-
-    unsigned _index_ =
-        std::distance(kernel_block_pair.begin(), it_kernel_block_pair_2);
-
-    if (m_thread_block_has_executed_status[_index_] == true)
-      continue;
-
-    unsigned _kid_ = it_kernel_block_pair_2->first - 1;
-    unsigned _warps_per_block_ = appcfg->get_num_warp_per_block(_kid_);
-
-    if (get_num_m_warp_active_status() + _warps_per_block_ <=
-        m_hw_cfg->get_max_warps_per_sm()) {
-
-      for (unsigned _wid_ = 0; _wid_ < _warps_per_block_; _wid_++) {
-
-        if (m_warp_active_status[_index_][_wid_] == false) {
-          m_warp_active_status[_index_][_wid_] = true;
-          m_thread_block_has_executed_status[_index_] = true;
-          m_active_warps++;
-          max_warps_init++;
-        }
-      }
-    }
-  }
+  this->simCTAEmittingSceduler();
 
   inst_fetch_buffer_entry **preg = m_pipeline_reg[EX_WB].get_ready();
   inst_fetch_buffer_entry *pipe_reg = (preg == NULL) ? NULL : *preg;
@@ -1173,15 +1141,15 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
     unsigned _gwarp_id_start = _warps_per_block * _block_id;
 
-    auto _compute_instn =
+    auto compute_instn =
         tracer->get_one_kernel_one_warp_one_instn(_kid, _wid, _uid);
-    auto _trace_warp_inst = _compute_instn->trace_warp_inst;
-    unsigned dst_reg_num = _trace_warp_inst.get_outcount();
+    auto trace_warp_inst = compute_instn->trace_warp_inst;
+    unsigned dst_reg_num = trace_warp_inst.get_outcount();
 
     std::vector<int> need_write_back_regs_num;
 
     for (unsigned i = 0; i < dst_reg_num; i++) {
-      int dst_reg_id = _trace_warp_inst.get_arch_reg_dst(i);
+      int dst_reg_id = trace_warp_inst.get_arch_reg_dst(i);
 
       if (dst_reg_id >= 0) {
         auto local_wid = (unsigned)(_wid % _warps_per_block);
@@ -1193,7 +1161,7 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
           m_reg_bank_allocator->setBankState(bank_id, ON_WRITING);
 
-          _trace_warp_inst.set_arch_reg_dst(i, -1);
+          trace_warp_inst.set_arch_reg_dst(i, -1);
         } else {
 
           flag_Writeback_Compute_Structural_bank_of_reg_is_not_idle = true;
@@ -1201,13 +1169,14 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
       }
     }
 
-    bool all_write_back = true;
-    for (unsigned i = 0; i < dst_reg_num; i++) {
-      if (_trace_warp_inst.get_arch_reg_dst(i) != -1) {
-        all_write_back = false;
-        break;
-      }
-    }
+    // bool all_write_back = true;
+    // for (unsigned i = 0; i < dst_reg_num; ++i) {
+    //   if (trace_warp_inst.get_arch_reg_dst(i) != -1) {
+    //     all_write_back = false;
+    //     break;
+    //   }
+    // }
+    const bool all_write_back = trace_warp_inst.allArchRegDstWriteBack();
 
     if (all_write_back) {
 
@@ -1221,7 +1190,7 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
       pipe_reg->m_valid = false;
 
-      if (_trace_warp_inst.get_opcode() == OP_EXIT &&
+      if (trace_warp_inst.get_opcode() == OP_EXIT &&
           tracer->get_one_kernel_one_warp_instn_count(_kid, _wid) == _uid + 1) {
 
         unsigned _index = 0;
@@ -1239,7 +1208,6 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
         }
 
         m_warp_active_status[_index][_wid - _gwarp_id_start] = false;
-        m_active_warps--;
       }
 
     } else {
@@ -1267,7 +1235,7 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
 
     if (all_write_back) {
 
-      _inst_trace_t *tmp_inst_trace = _compute_instn->inst_trace;
+      _inst_trace_t *tmp_inst_trace = compute_instn->inst_trace;
       for (unsigned i = 0; i < tmp_inst_trace->reg_srcs_num; i++) {
         need_write_back_regs_num.push_back(tmp_inst_trace->reg_src[i]);
       }
@@ -1279,7 +1247,7 @@ void PrivateSM::run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_
           need_write_back_regs_num.push_back(tmp_inst_trace->reg_dest[i]);
         }
       }
-      auto pred = _trace_warp_inst.get_pred();
+      auto pred = trace_warp_inst.get_pred();
       need_write_back_regs_num.push_back((pred < 0) ? pred
                                                     : pred + PRED_NUM_OFFSET);
 

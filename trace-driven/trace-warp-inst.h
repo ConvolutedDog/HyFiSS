@@ -107,6 +107,22 @@ public:
     assert(i < outcount);
     return arch_reg.dst[i];
   }
+  /// Determines whether all result registers are written back, and
+  /// the value of the register is set to -1 after being written back.
+  const bool allArchRegDstWriteBack() const {
+    // Another implementation logic:
+    //   bool all_write_back = true;
+    //   for (unsigned i = 0; i < outcount; ++i) {
+    //     if (trace_warp_inst.get_arch_reg_dst(i) != -1) {
+    //       all_write_back = false;
+    //       break;
+    //     }
+    //   }
+    //   return all_write_back;
+    return std::all_of(
+      std::begin(arch_reg.dst), std::end(arch_reg.dst), 
+      [&](int dstRegValue){ return dstRegValue == -1; });
+  }
   int get_arch_reg_src(unsigned i) const {
     assert(i < incount);
     return arch_reg.src[i];
