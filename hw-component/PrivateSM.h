@@ -1047,7 +1047,7 @@ class PrivateSM {
 public:
   PrivateSM(const unsigned smid, trace_parser *tracer, hw_config *hw_cfg);
   ~PrivateSM();
-  void run(unsigned KERNEL_EVALUATION, unsigned MEM_ACCESS_LATENCY,
+  void run(const unsigned KERNEL_EVALUATION, const unsigned MEM_ACCESS_LATENCY,
            stat_collector *stat_coll);
 
   bool get_active() { return active; }
@@ -1097,9 +1097,6 @@ public:
     return active_warps_id_size_sum;
   }
 
-  unsigned get_active_warps() { return m_active_warps; }
-  unsigned get_max_warps_init() { return max_warps_init; }
-
   app_config *get_appcfg() { return appcfg; }
   std::vector<std::pair<int, int>> *get_kernel_block_pair() {
     return &kernel_block_pair;
@@ -1107,7 +1104,7 @@ public:
   std::vector<unsigned> *get_num_warps_per_sm() { return &m_num_warps_per_sm; }
   unsigned get_num_scheds() { return num_scheds; }
 
-  unsigned get_num_m_warp_active_status() {
+  unsigned get_num_m_warp_active_status() const {
     unsigned num_active_warps = 0;
     for (unsigned i = 0; i < m_warp_active_status.size(); i++) {
       for (unsigned j = 0; j < m_warp_active_status[i].size(); j++) {
@@ -1118,6 +1115,12 @@ public:
     }
     return num_active_warps;
   }
+  // unsigned get_num_m_warp_active_status() const {
+  //   return std::accumulate(m_warp_active_status.begin(), m_warp_active_status.end(), 0u,
+  //                          [](unsigned sum, const std::vector<bool>& row) {
+  //                            return sum + std::count(row.begin(), row.end(), true);
+  //                          });
+  // }
 
   unsigned get_num_m_warp_active_status(unsigned index) {
     unsigned num_active_warps = 0;
@@ -1196,13 +1199,60 @@ public:
     return true;
   }
 
+  /// Since I initially wanted to support multi-kernel concurrent execution
+  /// in various situations in the code, I read all kernel thread block
+  /// emission information into main memory, but then put this plan on hold
+  /// for the time being. This is to set all other kernels that is not
+  /// currently being simulated as "do not need to be simulated".
+  void setKernelsNotNeedToBeSimulated(const unsigned &evaluatedKernel) {
+    unsigned index = 0;
+    for (auto it_kernel_block_pair = kernel_block_pair.begin();
+         it_kernel_block_pair != kernel_block_pair.end();
+         ++it_kernel_block_pair, ++index) {
+      if (it_kernel_block_pair->first - 1 != evaluatedKernel) {
+        m_thread_block_has_executed_status[index] = true;
+      }
+    }
+  }
+
+  /// Here we simulate the thread block emitting scheduler to emit a new
+  /// thread block to the SM, and then what we need to do is to set the
+  /// active status to true for all warps in this new emitted thread block.
+  void simCTAEmittingSceduler() {
+    unsigned index = 0;
+    unsigned total_active_warps = get_num_m_warp_active_status();
+    for (auto it_kernel_block_pair = kernel_block_pair.begin();
+        it_kernel_block_pair != kernel_block_pair.end();
+        ++it_kernel_block_pair, ++index) {
+      if (m_thread_block_has_executed_status[index]) continue;
+
+      unsigned kid = it_kernel_block_pair->first - 1;
+      unsigned warps_per_block = appcfg->get_num_warp_per_block(kid);
+
+      // Here we simulate the thread block emitting scheduler to emit
+      // a new thread block to the SM, and then what we need to do is
+      // to set the active status to true for all warps in this new
+      // emitted thread block.
+      /// TODO: Here, we only considered that will the total number
+      /// of warps for all thread blocks exceed the maximum number of
+      /// warps supported by a single SM.
+      if (total_active_warps + warps_per_block <=
+          m_hw_cfg->get_max_warps_per_sm()) {
+        for (unsigned wid = 0; wid < warps_per_block; ++wid) {
+          if (m_warp_active_status[index][wid] == false) {
+            m_warp_active_status[index][wid] = true;
+            ++total_active_warps;
+            m_thread_block_has_executed_status[index] = true;
+          }
+        }
+      }
+    }
+  }
+
 private:
   unsigned m_smid;
   unsigned long long m_cycle;
   bool active;
-
-  unsigned m_active_warps;
-  unsigned max_warps_init;
 
   unsigned long long active_cycles;
   unsigned long long active_warps_id_size_sum;
@@ -1293,6 +1343,15 @@ private:
       clk_record;
 
   std::map<unsigned, std::vector<bool>> block_is_in_bar; // 0704 
+
+  /// Where the cumulative sum of the `m_num_warps_per_sm` vectors
+  /// is computed and stored in, starting with the second element.
+  /// It means that,
+  ///   m_cumulative_warps_per_sm[0] = 0;
+  ///   m_cumulative_warps_per_sm[1] = m_num_warps_per_sm[0];
+  ///   m_cumulative_warps_per_sm[2] = m_num_warps_per_sm[0] +
+  ///                                  m_num_warps_per_sm[1];
+  std::vector<unsigned> m_cumulative_warps_per_sm;
 };
 
 #endif

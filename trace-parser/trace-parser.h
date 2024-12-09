@@ -79,20 +79,20 @@ public:
               WARP_SIZE));
   }
 
-  int get_num_warp_per_block(int kernel_id) {
-    return (int)((get_kernel_tb_dim_x(kernel_id) *
-                      get_kernel_tb_dim_y(kernel_id) *
-                      get_kernel_tb_dim_z(kernel_id) +
-                  WARP_SIZE - 1) /
-                 WARP_SIZE);
+  inline unsigned get_num_warp_per_block(const unsigned &kernel_id) const {
+    return (get_kernel_tb_dim_x(kernel_id) *
+            get_kernel_tb_dim_y(kernel_id) *
+            get_kernel_tb_dim_z(kernel_id) +
+            WARP_SIZE - 1
+           ) / WARP_SIZE;
   }
 
   std::vector<int> *get_kernels_tb_dim_x() { return &kernel_tb_dim_x; }
-  int get_kernel_tb_dim_x(int kernel_id) { return kernel_tb_dim_x[kernel_id]; }
+  inline const int get_kernel_tb_dim_x(const int kernel_id) const { return kernel_tb_dim_x[kernel_id]; }
   std::vector<int> *get_kernels_tb_dim_y() { return &kernel_tb_dim_y; }
-  int get_kernel_tb_dim_y(int kernel_id) { return kernel_tb_dim_y[kernel_id]; }
+  inline const int get_kernel_tb_dim_y(const int kernel_id) const { return kernel_tb_dim_y[kernel_id]; }
   std::vector<int> *get_kernels_tb_dim_z() { return &kernel_tb_dim_z; }
-  int get_kernel_tb_dim_z(int kernel_id) { return kernel_tb_dim_z[kernel_id]; }
+  inline const int get_kernel_tb_dim_z(const int kernel_id) const { return kernel_tb_dim_z[kernel_id]; }
 
   std::vector<int> *get_kernels_num_registers() {
     return &kernel_num_registers;
